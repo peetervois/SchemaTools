@@ -33,6 +33,7 @@
 
 import posixpath
 import argparse
+import sys
 
 class ScopedName:
     """
@@ -193,6 +194,10 @@ class SchemaFactory:
         if len( nam[nnam-1] ) == 0 :
             raise BaseException( "error: item must have name part; " + ln )
         self._cur_item = SchemaItem()
+        if len(itm_cmm) > 1 :
+            cmm = itm_cmm[1].rstrip()
+            if len(cmm) > 0 :
+                self._cur_item.desc = itm_cmm[1].rstrip()
         if len( nam ) > 1 :
             # find the parent type
             k = self.root
@@ -303,7 +308,11 @@ class SchemaFactory:
             includes = line.split("#",1)[0].split("$include")
             if len( includes ) < 2 :
                 # a line that does not contain $include statement
-                self.add(line)
+                try:
+                    self.add(line)
+                except:
+                    e = sys.exc_info()[1]
+                    print( "{}:{} :: {}".format(apath,lnum,e) )
                 continue
             for fn in includes :
                 fn = fn.strip()
