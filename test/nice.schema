@@ -26,4 +26,47 @@ set : COLLECTION = 1
 	another : par_id = 3
 :END
 
+bits : VARIADIC = 2
+	allright : BOOL = 1
+	notright : BOOL
+	another : BOOL = 3
+	errors : BOOL = 4
+:END
+
+sints : COLLECTION = 3
+	sint : SINT = 1
+	sint8 : SINT-8 = 2
+	sint16 : SINT-16 = 3
+	sint32 : SINT-32 = 4
+	sint64 : SINT-64 = 5
+	sint128 : SINT-128 = 6
+:END
+
+uints : COLLECTION = 4
+	uint : UINT = 1
+	uint8 : UINT-8 = 2
+	uint16 : UINT-16 = 3
+	uint32 : UINT-32 = 4
+	uint64 : UINT-64 = 5
+	uint128 : UINT-128 = 6
+:END
+
+floats : COLLECTION = 5
+	float : FLOAT = 1
+	float32 : FLOAT-32 = 4
+	float64 : FLOAT-64 = 5
+	float128 : FLOAT-128 = 6
+:END
+
+
+utf8 : UTF8 = 6
+
+blob : COLLECTION = 7
+	b1 : BLOB = 1
+	b2 : BLOB = 2
+:END
+
+
+
+
 

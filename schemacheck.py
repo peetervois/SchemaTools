@@ -34,6 +34,7 @@
 import posixpath
 import argparse
 import sys
+from builtins import isinstance
 
 
 
@@ -330,8 +331,140 @@ class SchemaFactory:
                 self.loadfile(fn)
         self._opened_files.pop()
             
+    def pydict(self, validate : dict, throw = False, inf = False) -> int:
+        """
+        Validate python dictionary against the schema.
+        It does remove all items that are not described by the schema.
         
+        :param validate - the dictionary to validate
+        :param throw - if the method shall raise exception on removal (when True) of item 
+                        or pass silently (when False)
+                        
+        :return 0  if the validate shall not be trusted, is not dict for example
+        :return -1 if something was removed from the validate
+        :return 1 if the dictionary was unchanged 
+        """
+        
+        rv = 1
+        
+        def ex( err : str ):
+            if throw:
+                raise BaseException( err )
+            if inf:
+                print( err )
+        
+        
+        def valueverify( key : str, val, schscope : SchemaItem ) -> bool:
+            inst = schscope.subitems[key]
+            if inst.item < 1 :
+                # it does not belong to item
+                ex( "error: key '{}' does not belong to item in scope '{}'".format(key, schscope.name))
+                return False
+            # verify the types of the items
+            if inst.type == 'COLLECTION' :
+                if not isinstance( val, dict ) :
+                    ex( "error: key '{}' must be dict in scope '{}'".format(key,schscope.name))
+                    return False
+                valscollect( val, inst )
+                return True
+            if inst.type == 'VARIADIC' :
+                if not isinstance( val, list ):
+                    ex( "error: key '{}' must be list in scope '{}'".format(key,schscope.name))
+                    return False
+                valsvariadic( val, inst )
+                return True
+            if inst.type == 'BOOL' :
+                if val != None and not isinstance( val, bool ) :
+                    ex( "error: key '{}' must be '{}' in scope '{}'".format(key,inst.type,schscope.name))
+                    return False
+                return True
+            if inst.type in ['SINT','SINT-8', 'SINT-16', 'SINT-32', 'SINT-64', 'SINT-128'] :
+                if (not isinstance( val, int ) and not isinstance(val,float)) or val != int( val ):
+                    ex( "error: key '{}' must be '{}' in scope '{}'".format(key,inst.type,schscope.name))
+                    return False
+                return True
+            if inst.type in ['UINT','UINT-8', 'UINT-16', 'UINT-32', 'UINT-64', 'UINT-128'] :
+                if (not isinstance( val, int ) and not isinstance( val, float )) or val < 0 or  val != int( val ):
+                    ex( "error: key '{}' must be '{}' in scope '{}'".format(key,inst.type,schscope.name))
+                    return False
+                return True
+            if inst.type in ['FLOAT', 'FLOAT-32', 'FLOAT-64', 'FLOAT-128'] :
+                if not isinstance( val, int ) and not isinstance( val, float ) :
+                    ex( "error: key '{}' must be '{}' in scope '{}'".format(key,inst.type,schscope.name))
+                    return False
+                return True
+            if inst.type == 'UTF8' :
+                if not isinstance( val, str ) :
+                    ex( "error: key '{}' must be '{}' in scope '{}'".format(key,inst.type,schscope.name))
+                    return False
+                return True
+            if inst.type == 'BLOB' :
+                if not isinstance( val, bytes ) and not isinstance( val, str ) :
+                    ex( "error: key '{}' must be '{}' in scope '{}'".format(key,inst.type,schscope.name))
+                    return False
+                return True
+            ex( "error: key '{}' type '{}' in scope '{}' not implemented".format(key,inst.type,schscope.name))
+            return False
 
+        
+        def valscollect( inscope : dict, schscope : SchemaItem ):
+            nonlocal rv
+            keys = list()
+            for key in inscope :
+                keys.append(key)
+            for key in keys :
+                if key not in schscope.subitems :
+                    # the input is not in schema
+                    ex( "error: key '{}' is not in schema scope '{}'".format(key, schscope.name))
+                    inscope.pop(key)
+                    rv = -1
+                    continue
+                # key is in schema, does the key belong to item instance?
+                val = inscope[key]
+                if not valueverify(key,val,schscope ):
+                    inscope.pop(key)
+                    rv = -1
+                    continue
+                continue
+            pass
+        
+        
+        def valsvariadic( inscope : list, schscope : SchemaItem ):
+            nonlocal rv
+            i = 0
+            while len(inscope) > i :
+                itm = inscope[i]
+                if isinstance( itm, str ):
+                    # this is special case of object inside variadic array that containing single boolean with True value
+                    if not valueverify(itm,None,schscope ):
+                        inscope.pop(i)
+                        rv = -1
+                        continue
+                    i += 1
+                    continue 
+                if isinstance( itm, dict ):
+                    # the other option is that the item is dictionary
+                    valscollect( itm, schscope )    
+                    if len( itm ) < 1 :
+                        inscope.pop(i)
+                        rv = -1
+                        continue
+                    i += 1
+                    continue
+                # this is something dangerous, do must be removed
+                ex( "error: item '{}' is not string nor dict inside variadic '{}'".format(itm,schscope.name))
+                rv = -1
+                inscope.pop(i)
+                continue            
+            pass
+        
+        if not isinstance( validate, dict ) :
+            ex( "error: dictionary not provided to the validation !")
+            return 0
+        valscollect( validate, self.root )
+        return rv
+        
+    pass
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Validate and process Tauria\'s schema files.')
