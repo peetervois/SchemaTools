@@ -3,13 +3,20 @@
 SchemaTools contains set of utils to work with schema:
 
  -  [x] Schema Checker
- -  [ ] Binary message parsers and generators for different languages
- -  [ ] JSON message filters
- -  [ ] Binary <-> JSON message translators.
+ -  [x] Python dict validator in Python3
+ -  [ ] JSON validator in javascript
+ -  [ ] Binary parsers and generators for Python3
+ -  [ ] Binary parser and generators for C
+ -  [ ] Binary parser and generators for javascript
+ -  [ ] Binary parser and generators for PHP
+ -  [ ] Binary <-> JSON for Python3
+ -  [ ] Binary <-> JSON for javascript
  
  It is work in progress.
  
 ## How to use
+
+### Checking the schema file consistency
  
  The checker is Python3 script, you can run it, the help shows:
  
@@ -28,6 +35,35 @@ optional arguments:
  
  Currently the **schemacheck.py** does parse the file and build schema tree into memory. 
  At the same time it does check the consistency of the schema against the basic principles of the schema.
+ 
+### Validating the Python dict
+
+The method **SchemaFactory.pydict()** does verify the contents of the dictionary and remove the items
+that do not match with the schema. It may raise exception when error is found, it can only print into stdout 
+the error messages. It may remove the items silently. Return values will also inform the caller what happened:
+
+**-1** Some items have been removed from the dict structure, it is ok to use it though. When the application
+has been composing the dictionary, then it may be good idea to raise exception too, since it points to bug.
+
+**0** The so called dict to verify is not trustworthy at all. Do not proceed with using it.
+
+**1** The verification passed without changes into the dictionary.
+
+
+```Python
+from schemacheck import SchemaFactory
+
+themessage = {}
+
+factory = SchemaFactory()
+factory.loadfile( "nice.schema" )
+factory.pydict( themessage )
+
+```
+
+### API
+
+TODO: write the api documentation
  
 ## Sample Schema file
  
