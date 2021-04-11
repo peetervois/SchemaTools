@@ -35,23 +35,6 @@ import posixpath
 import argparse
 import sys
 
-class ScopedName:
-    """
-    Helper class that keeps name with its scope
-    """
-    
-    scope : list = None
-    """
-    list of parent SchemaItems in scope order
-    """
-    
-    name : str = ""
-    """
-    Name of the item and its type
-    """
-    
-    def __init__(self):
-        self.scope = list()
 
 
 class SchemaItem:
@@ -64,16 +47,27 @@ class SchemaItem:
     special complex types: COLLECTION, VARIADIC 
     """
     
-    sname : ScopedName  = None
+    name : str  = ""
     """
     The name of the item. It also is the name of the type of the item
     """
     
-    stype : ScopedName  = None
+    name_scope : list = None
     """
-    The type of the item
+    list of SchemaItem of provided scope in name field
     """
     
+    type : str = ""
+    """
+    The name of the type this item is alias for
+    """
+    
+    type_scope : list = None
+    """
+    List of SchemItem of provided scope in the type field. Does also contain reference to
+    the type this item is alias for
+    """
+        
     item : int = 0
     """
     The item number, it must be non-zero when the item exists, type of the item does
@@ -88,10 +82,10 @@ class SchemaItem:
     derived = None
     """
     The reference  to SchemaItem this item is derived from.
-    In case stype is None, the derived's stype is used
-    In case item is None, the derived's item is used
-    In case desc is none, the derived's desc is used
-    If derived's corresponding attributes are None, its derived's attribute is used
+    Deriving works by providing scope path for the name of the item.
+    When deriving, first all attributes from the parent are taken,
+      then the attributes are overriden with the specification on
+      the current item.
     """
     
     subitems : dict = None
@@ -100,7 +94,8 @@ class SchemaItem:
     """
     
     def __init__(self):
-        self.sname = ScopedName()
+        self.name_scope = list()
+        self.type_scope = list()
         self.subitems = dict()
         
     
@@ -183,8 +178,8 @@ class SchemaFactory:
                 raise BaseException( "error: unmatched END; " + ln )
             if len( nam ) > 1 :
                 raise BaseException( "error: name space not allowed with END; " + ln )
-            if len( nam[0] ) > 0 and scop.sname.name != nam[0] :
-                raise BaseException( "error: unmatched end of current scope {}; {}".format( scop.sname.name, ln) )
+            if len( nam[0] ) > 0 and scop.name != nam[0] :
+                raise BaseException( "error: unmatched end of current scope {}; {}".format( scop.name, ln) )
             self._cur_scope.pop()
             return
         #
@@ -215,13 +210,13 @@ class SchemaFactory:
                 for i in nam :
                     typ.append( i )
         # place the name 
-        self._cur_item.sname.name = nam.pop()
+        self._cur_item.name = nam.pop()
         # place the scope
         for i in self._cur_scope :
-            self._cur_item.sname.scope.append(i)
+            self._cur_item.name_scope.append(i)
         # check the name uniqueness
-        if self._cur_item.sname.name in scop.subitems :
-            raise BaseException( "error: name {} is not unique; {}".format( self._cur_item.sname.name, ln ) )
+        if self._cur_item.name in scop.subitems :
+            raise BaseException( "error: name {} is not unique; {}".format( self._cur_item.name, ln ) )
         #
         # working with instance number
         if num == 0 and self._cur_item.derived != None :
@@ -235,7 +230,7 @@ class SchemaFactory:
             if v.item > 0 and v.item == self._cur_item.item :
                 raise BaseException( "error: the instance {} is not unique in scope; {}".format( v.item, ln ) )
         # register the  new item into current scope
-        scop.subitems[self._cur_item.sname.name] = self._cur_item            
+        scop.subitems[self._cur_item.name] = self._cur_item            
         #
         # working with type
         if "COLLECTION" in typ or "VARIADIC" in typ :
@@ -243,14 +238,14 @@ class SchemaFactory:
             if len( typ ) > 1 :
                 raise BaseException( "error: name space of types not allowed with complex types; " + ln )
             self._cur_scope.append( self._cur_item )
-            self._cur_item.stype = ScopedName()
-            self._cur_item.stype.name = typ[0]
+            self._cur_item.type = typ[0]
             return
         if len( typ ) == 0 :
             # we are using derived type
             if self._cur_item.derived == None :
                 raise BaseException( "error: type must be specified; " + ln )
-            self._cur_item.stype = self._cur_item.derived.stype
+            self._cur_item.type = self._cur_item.derived.type
+            self._cur_item.type_scope = self._cur_item.derived.type_scope
             return
         primitives = ["BOOL", "SINT", "UINT", "UTF8","BLOB","FLOAT",
                       "SINT-8","SINT-16","SINT-32","SINT-64","SINT-128",
@@ -265,7 +260,8 @@ class SchemaFactory:
                         raise BaseException( "error: name space of types not allowed with primitives; " + ln )
                     primitive = i
         # now, when primitive is used, the scope of types does not exist
-        self._cur_item.stype = ScopedName()
+        self._cur_item.type = ""
+        self._cur_item.type_scope = list()
         if primitive == None :
             # we have scoped type
             # find the parent type
@@ -276,12 +272,12 @@ class SchemaFactory:
                 if i not in k.subitems :
                     raise BaseException( "error: type '{}' not found; {}".format(i,ln) )
                 k = k.subitems[i]
-                self._cur_item.stype.scope.append(k)
+                self._cur_item.type_scope.append(k)
             # expand the type
             self._cur_item.subitems = k.subitems
-            self._cur_item.stype.name = k.stype.name
+            self._cur_item.type = k.type
         else :
-            self._cur_item.stype.name = primitive 
+            self._cur_item.type = primitive 
                 
         # DONE !!! 
     
@@ -336,7 +332,7 @@ if __name__ == "__main__":
     factory.loadfile( args.fname[0] )
     
             
-    #print( 'done' )
+    print( 'done' )
         
     
     
