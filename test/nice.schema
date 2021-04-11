@@ -1,0 +1,29 @@
+
+#
+# This is nice schema for testing 
+#
+
+$include nice.schema # circular inclusion test
+
+par_id : COLLECTION
+	width : BOOL = 1
+	height : BOOL = 2
+	depth : BOOL = 3
+:END
+
+
+parameters : COLLECTION
+	par_id.width : FLOAT
+	par_id.height : FLOAT
+	par_id.depth : FLOAT
+:END
+
+
+set : COLLECTION = 1
+	# root scope test
+	.parameters	= 1
+	forceparams : .par_id = 2
+	another : par_id = 3
+:END
+
+

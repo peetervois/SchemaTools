@@ -196,9 +196,14 @@ class SchemaFactory:
         if len( nam ) > 1 :
             # find the parent type
             k = self.root
+            rootscope = True
             for i in nam :
                 if len( i ) == 0 :
+                    if rootscope :
+                        rootscope = False
+                        continue
                     raise BaseException( "error: name space type must have name; " + ln )
+                rootscope = False
                 if i not in k.subitems :
                     raise BaseException( "error: name '{}' not found; {}".format(i,ln) )
                 k = k.subitems[i]
@@ -266,9 +271,14 @@ class SchemaFactory:
             # we have scoped type
             # find the parent type
             k = self.root
+            rootscope = True
             for i in typ :
                 if len( i ) == 0 :
-                    raise BaseException( "error: name space type must have type; " + ln )
+                    if rootscope :
+                        rootscope = False
+                        continue
+                    raise BaseException( "error: name space type must have name; " + ln )
+                rootscope = False
                 if i not in k.subitems :
                     raise BaseException( "error: type '{}' not found; {}".format(i,ln) )
                 k = k.subitems[i]
@@ -309,6 +319,7 @@ class SchemaFactory:
                 except:
                     e = sys.exc_info()[1]
                     print( "{}:{} :: {}".format(apath,lnum,e) )
+                    sys.exit(1)
                 continue
             for fn in includes :
                 fn = fn.strip()
