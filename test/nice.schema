@@ -67,6 +67,14 @@ blob : COLLECTION = 7
 :END
 
 
+circular : COLLECTION = 8
+	before: SINT = 1
+	.circular = 2
+	after: SINT = 3
+	varcirc : VARIADIC = 4
+		.circular = 1
+	:END
+:END
 
 
 

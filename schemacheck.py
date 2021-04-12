@@ -331,6 +331,8 @@ class SchemaFactory:
                 self.loadfile(fn)
         self._opened_files.pop()
             
+
+    
     def pydict(self, validate : dict, throw = False, inf = False) -> int:
         """
         Validate python dictionary against the schema.
@@ -345,7 +347,9 @@ class SchemaFactory:
         :return 1 if the dictionary was unchanged 
         """
         
-        rv = 1
+        rv = {}
+        rv['r'] = 1
+        recur = list()
         
         def ex( err : str ):
             if throw:
@@ -369,13 +373,17 @@ class SchemaFactory:
                     ex( "error: key '{}' must be dict in scope '{}'".format(key,schscope.name))
                     return False
                 valscollect( val, inst )
-                return True
+                if not rv['r'] :
+                    ex( "error: closed recursion key '{}' identified -> breaking it under '{}'".format(key,schscope.name))
+                return rv['r']
             if inst.type == 'VARIADIC' :
                 if not isinstance( val, list ):
                     ex( "error: key '{}' must be list in scope '{}'".format(key,schscope.name))
                     return False
                 valsvariadic( val, inst )
-                return True
+                if not rv['r'] :
+                    ex( "error: closed recursion key '{}' identified -> breaking it under '{}'".format(key,schscope.name))
+                return rv['r']
             if inst.type == 'BOOL' :
                 if val != None and not isinstance( val, bool ) :
                     ex( "error: key '{}' must be '{}' in scope '{}'".format(key,inst.type,schscope.name))
@@ -411,7 +419,10 @@ class SchemaFactory:
 
         
         def valscollect( inscope : dict, schscope : SchemaItem ):
-            nonlocal rv
+            if id(inscope) in recur:
+                rv['r'] = 0
+                return
+            recur.append( id(inscope) )
             keys = list()
             for key in inscope :
                 keys.append(key)
@@ -419,14 +430,17 @@ class SchemaFactory:
                 val = inscope[key]
                 if not valueverify(key,val,schscope ):
                     inscope.pop(key)
-                    rv = -1
+                    rv['r'] = -1
                     continue
                 continue
-            pass
+            recur.pop()
         
         
         def valsvariadic( inscope : list, schscope : SchemaItem ):
-            nonlocal rv
+            if id(inscope) in recur:
+                rv['r'] = 0
+                return
+            recur.append( id(inscope) )
             i = 0
             while len(inscope) > i :
                 itm = inscope[i]
@@ -434,7 +448,7 @@ class SchemaFactory:
                     # this is special case of object inside variadic array that containing single boolean with True value
                     if not valueverify(itm,None,schscope ):
                         inscope.pop(i)
-                        rv = -1
+                        rv['r'] = -1
                         continue
                     i += 1
                     continue 
@@ -443,22 +457,22 @@ class SchemaFactory:
                     valscollect( itm, schscope )    
                     if len( itm ) < 1 :
                         inscope.pop(i)
-                        rv = -1
+                        rv['r'] = -1
                         continue
                     i += 1
                     continue
                 # this is something dangerous, do must be removed
                 ex( "error: item '{}' is not string nor dict inside variadic '{}'".format(itm,schscope.name))
-                rv = -1
+                rv['r'] = -1
                 inscope.pop(i)
                 continue            
-            pass
+            recur.pop()
         
         if not isinstance( validate, dict ) :
             ex( "error: dictionary not provided to the validation !")
             return 0
         valscollect( validate, self.root )
-        return rv
+        return rv['r']
         
     pass
     

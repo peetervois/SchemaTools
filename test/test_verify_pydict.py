@@ -103,13 +103,46 @@ if __name__ == "__main__":
         'sc':{'blob':{'b1':2}}
     }]
     
+    circ = { "before":11, "after":33 }
+    circ["circular"] = circ
+    tests.append({'dc':'making circular test','rv':0,'sc':{'circular':circ}})
+
+    circ1 = { "before":11, "after":33 }
+    circ2 = { "before":11, "after":33 }
+    circ3 = { "before":11, "circular":circ1, "after":33 }
+    circ1["circular"] = circ2
+    circ2["circular"] = circ3
+    tests.append({'dc':'making depth 3 circular test','rv':-1,'sc':{'circular':circ1}})
+    
+    circ1v = { "before":11, "varcirc":[], "after":33 }
+    circ2v = { "before":11, "varcirc":[], "after":33 }
+    circ3v = { "before":11, "varcirc":[], "after":33 }
+    circ1v["varcirc"].append({ "circular":circ2v})
+    circ2v["varcirc"].append({ "circular":circ3v})
+    circ3v["varcirc"].append({ "circular":circ1v})
+    tests.append({'dc':'making depth 3 variadic circular test','rv':-1,'sc':{'circular':circ1v}})
+    
+    num_tests = 0
+    num_fails = 0
     for i in tests :
+        num_tests += 1
+        #if num_tests == 26 :
+        #    print(" do break ")
         if 'dc' in i :
             print( " --- " + i['dc'] )
         print( i['sc'] )
-        print( factory.pydict(i['sc'], inf=True) == i['rv'] )
+        if factory.pydict(i['sc'], inf=True) == i['rv'] :
+            print( "Passed" )
+        else:
+            print( "  ***  F A I L E D   ***  ")
         print( i['sc'] )
         print()
-    
+    print()
+    print(     "---------------------------------------------------")
+    print(     "     Number of tests ran: {}".format(num_tests))
+    print(     "  Number of tests failed: {}".format(num_fails))
+    if num_fails :
+        print( "                          ^^^^^^^^^^^^^^^^^^^^^^^^^")
+    print(     "---------------------------------------------------")
 
 
