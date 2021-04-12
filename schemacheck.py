@@ -355,6 +355,9 @@ class SchemaFactory:
         
         
         def valueverify( key : str, val, schscope : SchemaItem ) -> bool:
+            if key not in schscope.subitems :
+                ex( "error: key '{}' is not found in scope '{}'".format(key, schscope.name))
+                return False
             inst = schscope.subitems[key]
             if inst.item < 1 :
                 # it does not belong to item
@@ -413,13 +416,6 @@ class SchemaFactory:
             for key in inscope :
                 keys.append(key)
             for key in keys :
-                if key not in schscope.subitems :
-                    # the input is not in schema
-                    ex( "error: key '{}' is not in schema scope '{}'".format(key, schscope.name))
-                    inscope.pop(key)
-                    rv = -1
-                    continue
-                # key is in schema, does the key belong to item instance?
                 val = inscope[key]
                 if not valueverify(key,val,schscope ):
                     inscope.pop(key)
