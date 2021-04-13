@@ -5,6 +5,16 @@
 
 $include nice.schema # circular inclusion test
 
+
+commentbase : UINT = 9
+	#withcomment
+	
+derivecomment : COLLECTION = 10
+	.commentbase
+:END	
+	
+
+
 par_id : COLLECTION
 	width : BOOL = 1
 	height : BOOL = 2

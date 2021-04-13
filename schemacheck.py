@@ -126,24 +126,34 @@ class SchemaFactory:
         """
         #print( line )
         # remove leading and trailing whitespace
-        ln = line.strip()
+        ln1 = line.strip()
         #
         # --- check if it is empty line
-        if len( ln ) == 0 :
+        #if len( ln ) == 0 :
             # empty line
-            self._cur_item = None # we are no longer adding comments into the item
-            return
+        #    self._cur_item = None # we are no longer adding comments into the item
+        #    return
         #
         # --- check if we have pure comment line
-        itm_cmm = ln.split("#",1)
+        itm_cmm = ln1.split("#",1)
         ln = itm_cmm[0].strip()
-        if len( ln ) == 0 :
+        if len( ln ) == 0 and len(itm_cmm) > 1:
             # pure commentary line, add commentary to the current item if it exists
             if self._cur_item != None:
                 self._cur_item.desc += "\n"+ itm_cmm[1]
             return
         #
         # --- work with the item description
+        # lets derive the comments if nothing is provided
+        if self._cur_item != None :
+            if self._cur_item.name == "commentbase" :
+                pass
+            if self._cur_item.desc == "" and self._cur_item.derived != None :
+                self._cur_item.desc = self._cur_item.derived.desc
+        if len( ln1 ) == 0 :
+            # empty line
+            self._cur_item = None # we are no longer adding comments into the item
+            return
         # the previous item is closed now
         self._cur_item = None
         # split the line by ':'

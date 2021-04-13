@@ -105,7 +105,7 @@ if __name__ == "__main__":
     
     circ = { "before":11, "after":33 }
     circ["circular"] = circ
-    tests.append({'dc':'making circular test','rv':0,'sc':{'circular':circ}})
+    tests.append({'dc':'making circular test','rv':-1,'sc':{'circular':circ}})
 
     circ1 = { "before":11, "after":33 }
     circ2 = { "before":11, "after":33 }
@@ -122,6 +122,18 @@ if __name__ == "__main__":
     circ3v["varcirc"].append({ "circular":circ1v})
     tests.append({'dc':'making depth 3 variadic circular test','rv':-1,'sc':{'circular':circ1v}})
     
+    
+    def verify_comment_derived( fact : SchemaFactory ) -> bool:
+        if fact.root.subitems['derivecomment'].subitems['commentbase'].desc != "\nwithcomment" :
+            print("error: comment not derived")
+            return False
+        return True
+    
+    tests.extend([{
+        'dc':"deriving comments",
+        'fn':verify_comment_derived
+    }])
+    
     num_tests = 0
     num_fails = 0
     for i in tests :
@@ -130,19 +142,27 @@ if __name__ == "__main__":
         #    print(" do break ")
         if 'dc' in i :
             print( " --- " + i['dc'] )
-        print( i['sc'] )
-        if factory.pydict(i['sc'], inf=True) == i['rv'] :
-            print( "Passed" )
-        else:
-            print( "  ***  F A I L E D   ***  ")
-        print( i['sc'] )
+        if 'sc' in i :
+            print( i['sc'] )
+            if factory.pydict(i['sc'], inf=True) == i['rv'] :
+                print( "Passed" )
+            else:
+                print( "  ***  F A I L E D   ***  ")
+                num_fails += 1
+            print( i['sc'] )
+        if 'fn' in i :
+            if i['fn']( factory ) :
+                print( "Passed" )
+            else:
+                print( "  ***  F A I L E D   ***  ")
+                num_fails += 1
         print()
     print()
-    print(     "---------------------------------------------------")
+    print(     "--------------------------------")
     print(     "     Number of tests ran: {}".format(num_tests))
     print(     "  Number of tests failed: {}".format(num_fails))
     if num_fails :
-        print( "                          ^^^^^^^^^^^^^^^^^^^^^^^^^")
-    print(     "---------------------------------------------------")
+        print( "                          ^^^^^")
+    print(     "--------------------------------")
 
 
