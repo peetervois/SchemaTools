@@ -483,6 +483,72 @@ class SchemaFactory:
             return 0
         valscollect( validate, self.root )
         return rv['r']
+    
+    
+    def generate_flat_tree(self) -> dict:
+        """
+        Flat tree is needed for other language support compilation. It provides generic model of 
+        the schema structure
+        """
+        
+        tree = []               # tree is flat list.
+
+        def new_row( v : SchemaItem ) -> dict:
+            rv = { 
+                "item": v.item,          # the item identificator number
+                "name": v.name,          # the item name
+                "type": v.type,          # the type name, contains only primitives
+                "desc": v.desc,          # description for the engineers
+                "sub": 0,                # index to first subitem
+                "next": 0,               # index to the next item at the same scope
+                "_idx": len(tree)        # its flatrow index
+            }
+            tree.append(rv)
+            return rv
+        
+        
+        if getattr(self.root,'_flatrow',None) == None :
+            # create flatrow for the root item
+            # and place it as the item 0
+            self.root._flatrow = new_row(self.root)
+            self.root._flattree = tree
+        else:
+            # the flatrow actually does exist already
+            return self.root._flattree
+        
+        
+        def scan_subitems( itm : SchemaItem ):
+            if itm._flatrow['sub'] > 0 :
+                # the item's subitems have been already scanned or is in the middle of scanning
+                return
+            for k,v in itm.subitems.items():
+                if v.item < 1 :
+                    # we take only existing items
+                    continue
+                if getattr(v,'_flatrow',None) == None:
+                    # the item does not have yet the flat row
+                    v._flatrow = new_row(v)
+                    if len(tree) > 6 :
+                        pass
+                if itm._flatrow['sub'] == 0:
+                    itm._flatrow['sub'] = v._flatrow['_idx']
+                else:
+                    i = itm._flatrow['sub']
+                    j = i
+                    while i > 0 :
+                        j = i
+                        i = tree[i]['next']
+                    tree[j]['next'] = v._flatrow['_idx']
+                if len( v.subitems ) > 0:
+                    scan_subitems( v )
+                if v._flatrow['next'] > 0:
+                    break
+                pass
+            pass
+        
+        scan_subitems(self.root)
+                    
+        return self.root._flattree
         
     pass
     

@@ -134,6 +134,18 @@ if __name__ == "__main__":
         'fn':verify_comment_derived
     }])
     
+    def verify_flattree( fact : SchemaFactory ) -> bool:
+        tree = fact.generate_flat_tree()
+        for i in tree :
+            print( i )
+        return True
+
+    tests.extend([{
+        'dc':"producing flat tree",
+        'fn':verify_flattree
+    }])
+
+    
     num_tests = 0
     num_fails = 0
     for i in tests :
