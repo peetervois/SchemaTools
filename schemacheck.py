@@ -111,10 +111,13 @@ class SchemaFactory:
     The Schema root item
     """
     
-    def __init__(self):
+    def __init__(self, opened : list = None):
         self.root = SchemaItem()
         self._cur_scope = list()
         self._opened_files = list()
+        if opened != None :
+            self._opened_files = opened
+
     
     _cur_item : SchemaItem = None # the schema item currently are working with
     
@@ -311,7 +314,7 @@ class SchemaFactory:
         # check if the file is already opened and not yet closed
         apath = posixpath.abspath(path)
         if apath in self._opened_files :
-            return
+            raise BaseException( "error: circular inclusion of {}".format(apath) )
         self._opened_files.append(apath)
         dirname = posixpath.dirname( apath )
         #print(" --- {}".format(apath))
@@ -323,22 +326,33 @@ class SchemaFactory:
                 break
             lnum += 1
             includes = line.split("#",1)[0].split("$include")
-            if len( includes ) < 2 :
-                # a line that does not contain $include statement
-                try:
+            try:
+                if len( includes ) < 2 :
+                    # a line that does not contain $include statement
                     self.add(line)
-                except:
-                    e = sys.exc_info()[1]
-                    print( "{}:{} :: {}".format(apath,lnum,e) )
-                    sys.exit(1)
-                continue
-            for fn in includes :
-                fn = fn.strip()
-                if len(fn) == 0 :
                     continue
-                if fn[0] != '/' :
-                    fn = dirname + "/" + fn
-                self.loadfile(fn)
+                for fn in includes :
+                    fn = fn.strip()
+                    if len(fn) == 0 :
+                        continue
+                    if fn[0] != '/' :
+                        fn = dirname + "/" + fn
+                    subfactory = SchemaFactory( opened=self._opened_files )
+                    subfactory.loadfile(fn)
+                    scop = self.root
+                    if len( self._cur_scope ) > 0 :
+                        scop = self._cur_scope[ len( self._cur_scope) -1 ]
+                    for k, v in subfactory.root.subitems.items():
+                        if k in scop.subitems :
+                            raise BaseException( "error: name '{}' from include is not unique !".format( k ) )
+                        for ik, i in scop.subitems.items() :
+                            if v.item == i.item and v.item > 0 :
+                                raise BaseException( "error: item '{}' of '{}' from include is not unique !".format(v.item,k) )
+                        scop.subitems[k] = v
+            except:
+                e = sys.exc_info()[1]
+                print( "{}:{} :: {}".format(apath,lnum,e) )
+                sys.exit(1)
         self._opened_files.pop()
             
 

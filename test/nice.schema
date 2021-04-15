@@ -3,8 +3,15 @@
 # This is nice schema for testing 
 #
 
-$include nice.schema # circular inclusion test
+# $include nice.schema # circular inclusion test
 
+nspace : COLLECTION
+
+  $include subschem.schema
+
+nspace : END
+
+asjandus : nspace.subcoll = 11
 
 commentbase : UINT = 9
 	#withcomment

@@ -1,0 +1,15 @@
+
+#
+# a sub schema test inside sub-scope
+#
+
+subcoll : COLLECTION = 1
+    # this collection is from subschem
+	asi : UINT = 1
+: END
+
+koll : subcoll = 2
+
+#  $include nice.schema 
+  
+ 
