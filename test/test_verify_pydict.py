@@ -101,6 +101,10 @@ if __name__ == "__main__":
         'dc':"number must be catched",
         'rv':-1,
         'sc':{'blob':{'b1':2}}
+    },{
+        'dc':"testing None type, must pass",
+        'rv':1,
+        'sc':{'blob':{'b1':None}}
     }]
     
     circ = { "before":11, "after":33 }

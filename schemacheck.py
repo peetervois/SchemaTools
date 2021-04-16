@@ -391,6 +391,9 @@ class SchemaFactory:
                 # it does not belong to item
                 ex( "error: key '{}' does not belong to item in scope '{}'".format(key, schscope.name))
                 return False
+            if val == None:
+                # value None is accepted as special case { "key": null } used for requests of key
+                return True
             # verify the types of the items
             if inst.type == 'COLLECTION' :
                 if not isinstance( val, dict ) :
@@ -409,7 +412,7 @@ class SchemaFactory:
                     ex( "error: closed recursion key '{}' identified -> breaking it under '{}'".format(key,schscope.name))
                 return rv['r']
             if inst.type == 'BOOL' :
-                if val != None and not isinstance( val, bool ) :
+                if not isinstance( val, bool ) :
                     ex( "error: key '{}' must be '{}' in scope '{}'".format(key,inst.type,schscope.name))
                     return False
                 return True
