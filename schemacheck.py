@@ -465,7 +465,7 @@ class SchemaFactory:
         
         def valsvariadic( inscope : list, schscope : SchemaItem ):
             if id(inscope) in recur:
-                rv['r'] = 0
+                rv['r'] = 0 # remove it
                 return
             recur.append( id(inscope) )
             i = 0
@@ -481,6 +481,11 @@ class SchemaFactory:
                     continue 
                 if isinstance( itm, dict ):
                     # the other option is that the item is dictionary
+                    # the dictionary can contain only one root element
+                    if len(itm) > 1 :
+                        ex( "error: anonymous dict may hold only one root element under VARIADIC '{}' !".format(schscope.name))
+                        rv['r'] = -1 
+                        return
                     valscollect( itm, schscope )    
                     if len( itm ) < 1 :
                         inscope.pop(i)

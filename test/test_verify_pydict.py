@@ -105,6 +105,14 @@ if __name__ == "__main__":
         'dc':"testing None type, must pass",
         'rv':1,
         'sc':{'blob':{'b1':None}}
+    },{
+        'dc':"test if root object under variadic has more than one item",
+        'rv':-1,
+        'sc':{'bits':['allright',{'allright':True},{'another':True,'errors':False}]}
+    },{
+        'dc':"test if root object under variadic has more than one item #1",
+        'rv':1,
+        'sc':{'bits':['allright',{'allright':True},{'another':True},{'errors':False}]}
     }]
     
     circ = { "before":11, "after":33 }
