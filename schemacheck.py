@@ -485,7 +485,6 @@ class SchemaFactory:
                     if len(itm) > 1 :
                         ex( "error: anonymous dict may hold only one root element under VARIADIC '{}' !".format(schscope.name))
                         rv['r'] = -1 
-                        return
                     valscollect( itm, schscope )    
                     if len( itm ) < 1 :
                         inscope.pop(i)
@@ -503,6 +502,9 @@ class SchemaFactory:
         if not isinstance( validate, dict ) :
             ex( "error: dictionary not provided to the validation !")
             return 0
+        if len( validate ) > 1:
+            ex( "error: in root scope dict, only one root element is allowed !")
+            rv['r'] = -1
         valscollect( validate, self.root )
         return rv['r']
     

@@ -113,6 +113,10 @@ if __name__ == "__main__":
         'dc':"test if root object under variadic has more than one item #1",
         'rv':1,
         'sc':{'bits':['allright',{'allright':True},{'another':True},{'errors':False}]}
+    },{
+        'dc':"test multiple root scope elements",
+        'rv':-1,
+        'sc':{'sints':{'sint':-10},'uints':{'uint':20}}
     }]
     
     circ = { "before":11, "after":33 }
