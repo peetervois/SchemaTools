@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 /**
  * Enumeration of the TLV primitives
@@ -93,6 +94,17 @@ typedef struct
 	uint8_t		lc;  	// the l and c bits of the tag
 }tausch_iter_t;
 
+#define TAUSCH_ITER_INIT( buf, size ) \
+{\
+	.ebuf = (uint8_t*)(buf) + (size), \
+	.idx = (uint8_t*)(buf), \
+	.next = (uint8_t*)(buf), \
+	.val = (uint8_t*)(buf), \
+	.tag = ~(size_t)0, \
+	.vlen = 0, \
+	.scope = 0, \
+	.lc = 0 \
+}
 
 typedef struct
 {
@@ -111,11 +123,11 @@ typedef struct
  * @return number of bytes read out
  */
 #define tausch_read( iter, value ) _Generic((value), \
-    bool*:          tausch_read_bool( iter, value ), \
+    bool*:          tausch_read_bool( (iter), (value) ), \
     char*:          restricted__use_blob_instead(), \
-    tausch_blob_t*: tausch_read_blob( iter, value ), \
-    void*:          tausch_iter_vlen( iter ), \
-    default:        tausch_read_typX( iter, (uint8_t*)value, sizeof(value[0]) ), \
+    tausch_blob_t*: tausch_read_blob( (iter), (value) ), \
+    void*:          tausch_iter_vlen( (iter) ), \
+    default:        tausch_read_typX( (iter), (uint8_t*)(value), sizeof((value)[0]) ), \
 )
 
 /**
@@ -129,11 +141,11 @@ typedef struct
  * @return number of value bytes written
  */
 #define tausch_write( iter, tag, value ) _Generic((value), \
-    bool*:          tausch_write_bool( iter, tag, value ), \
-    char*:          tausch_write_utf8( iter, tag, value ), \
-	tausch_blob_t*: tausch_write_blob( iter, tag, value ), \
-	void*:          restricted__use_blob_instead(), \
-	default:        tausch_write_typX( iter, tag, value, sizeof(value[0]) ), \
+    bool*:          tausch_write_bool( (iter), (size_t)(tag), (bool*)(value) ), \
+    char*:          tausch_write_utf8( (iter), (size_t)(tag), (char*)(value) ), \
+	tausch_blob_t*: tausch_write_blob( (iter), (size_t)(tag), (tausch_blob_t*)(value) ), \
+	void*:          tausch_write_typX( (iter), (size_t)(tag), (uint8_t*)NULL, 0 ), \
+	default:        tausch_write_typX( (iter), (size_t)(tag), (uint8_t*)(value), sizeof((value)[0]) ) \
 )
 
 /**
@@ -180,7 +192,7 @@ size_t tausch_decode_vluint( tausch_iter_t *iter );
  * @return true on success
  * @return false on failure
  */
-bool tausch_encode_vluint( tausch_iter_t *iter, size_t *val );
+bool tausch_encode_vluint( tausch_iter_t *iter, size_t val );
 
 /**
  * Calculate memory length of the resulting vluint
