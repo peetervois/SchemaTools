@@ -241,6 +241,7 @@ bool tausch_decode_next( tausch_iter_t *iter )
                 return false;
             }
             iter->scope -= 1;
+            iter->idx = iter->next;
             continue;
         }
         break;
@@ -388,7 +389,7 @@ bool tausch_decode_to_tag( tausch_iter_t *iter, size_t tag )
             else return false; // EOF the tag was not found
         }
         if( ! tausch_iter_is_ok( iter ) ) return false;
-        if( (iter->tag == tag) && (iter->lc != 3) && (iter->scope == scope) )
+        if( (iter->tag == tag) && (iter->lc != 3) && ( (iter->scope - (iter->lc == 1)) == scope) )
         {
             // stuffing has been found
             return true;
@@ -424,7 +425,7 @@ bool tausch_write_stuffing( tausch_iter_t *iter, size_t len )
     {
         iter->tag = 0;
         if( !rv ) *iter = cpy;
-        if( is_eof ) tausch_format_buf( iter->next );
+        if( is_eof && (iter->next < iter->ebuf) ) tausch_format_buf( iter->next );
         return rv;
     }
     if( totlen < 1 ) return finalize( false );
@@ -473,13 +474,13 @@ bool tausch_write_scope( tausch_iter_t *iter, size_t tag )
     k <<= 2;
     k += 1;
     bool is_eof = tausch_buf_is_eof( iter->idx );
-    if( !tausch_encode_vluint( iter, k ) )
+    if( !tausch_encode_vluint( iter, k ) || (iter->next >= iter->ebuf) )
     {
         iter->next = iter->idx;
-        if( is_eof ) tausch_format_buf( iter->next );
+        if( is_eof && (iter->next < iter->ebuf) ) tausch_format_buf( iter->next );
         return false;
     }
-    if( is_eof ) tausch_format_buf( iter->next );
+    if( is_eof && (iter->next < iter->ebuf) ) tausch_format_buf( iter->next );
     iter->val = NULL;
     iter->lc = 1;
     iter->scope += 1;
@@ -502,13 +503,13 @@ bool tausch_write_end( tausch_iter_t *iter )
     if( iter->scope <= 0 ) return false;   // nothing to close
     size_t k = 3;
     bool is_eof = tausch_buf_is_eof( iter->idx );
-    if( !tausch_encode_vluint( iter, k ) )
+    if( !tausch_encode_vluint( iter, k ) || (iter->next >= iter->ebuf) )
     {
         iter->next = iter->idx;
-        if( is_eof ) tausch_format_buf( iter->next );
+        if( is_eof && (iter->next < iter->ebuf) ) tausch_format_buf( iter->next );
         return false;
     }
-    if( is_eof ) tausch_format_buf( iter->next );
+    if( is_eof && (iter->next < iter->ebuf) ) tausch_format_buf( iter->next );
     iter->val = NULL;
     iter->lc = 3;
     iter->scope -= 1;
@@ -754,7 +755,7 @@ size_t tausch_write_typX( tausch_iter_t *iter, size_t tag, uint8_t *value, size_
             // null value was requested
             iter->val = NULL;
             iter->vlen = 0;
-            return 1;
+            return finalize( 1 );
         }
         // write the len
         if( ! tausch_encode_vluint(iter, len) ) return finalize( 0 );
@@ -785,7 +786,7 @@ size_t tausch_read_blob( tausch_iter_t *iter, tausch_blob_t *value )
     if( ! tausch_iter_is_ok( iter ) ) return 0;
     if( value == NULL ) return 0;
     if( value->len < iter->vlen ) return 0;
-    memcpy( (void*)value, (void*)iter->val, iter->vlen);
+    memcpy( (void*)value->buf, (void*)iter->val, iter->vlen);
     return iter->vlen;
 }
 
@@ -832,6 +833,7 @@ size_t tausch_write_utf8( tausch_iter_t *iter, size_t tag, char *value )
     if( tausch_iter_is_complete( iter ) )
     {
         if( tausch_iter_is_null( iter ) ) return 0; // the iter is null
+        if( iter->tag != tag ) return 0; // the tag must be the same
         if( stlen > iter->vlen ) return 0; // the string does not fill in
         memcpy( iter->val, value, stlen );
         memset( iter->val + stlen, 0x00, iter->vlen-stlen );
