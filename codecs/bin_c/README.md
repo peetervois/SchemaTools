@@ -79,9 +79,41 @@ void handle( uint8_t *buf, size_t len )
 		// The tag does not exist
 		return;
 	}
-	
 }
 
+```
+
+The same above in much dense coding style:
+
+```C
+void handle( uint8_t *buf, size_t len )
+{
+	tausch_iter_t iter, iter_init;
+	bool error = false;
+
+	// Initialize the iterator
+	
+	error ||= tausch_iter_init( &iter, buf, len );   // initialize the iterator
+	iter_init = iter;                      // store the value for easy reinitialization
+	
+	error ||= ! tausch_decode_to_tag( &iter, MY_TAG ) );
+	error ||= ! tausch_decode_to_tag( &iter, MY_SUBTAG ) );
+	error ||= ! tausch_iter_is_null( &iter ) );
+	int32_t getval = 0;
+	error ||= ! tausch_read( &iter, &getval ) );
+	int32_t value = 43;
+	error ||= ! tausch_write( &iter, MY_SUBTAG, &value ) );
+	error ||= ! tausch_decode_to_end( &iter ) );
+	
+	iter = iter_init;   // the easy initialization
+	
+	error ||= ! tausch_decode_to_tag( &iter, MY_ANOTHER_TAG ) );
+	
+	if( ! error )
+	{
+		// do the response part...
+	}
+}
 ```
 
 
