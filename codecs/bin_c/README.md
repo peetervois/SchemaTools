@@ -1,6 +1,89 @@
 # TauSchema Codec C
 
-TauSchema codec for C language does parse, modify and compose TLV binary message.
+TauSchema codec for C language does parse, modify and compose TLV binary message. The message is as flexible as JSON.
+
+## Usage
+
+The low level interface does use Iterators to navigate through the binary. It is possible to overwrite values, append values to
+the end of message, clear the TLV elements by overwriting them with "Stuffing" (a special TLV whose tag id is 0).
+
+```c
+#include "tauschema_codec.h"
+
+uint8_t messagebuf[100];
+
+void handle( uint8_t *buf, size_t len )
+{
+	tausch_iter_t iter, iter_init;
+
+	// Initialize the iterator
+	
+	tausch_iter_init( &iter, buf, len );   // initialize the iterator
+	iter_init = iter;                      // store the value for easy reinitialization
+	
+	// Decode the iterator to the element that we
+	// are interested of. Search for the root level tag.
+	
+	if( ! tausch_decode_to_tag( &iter, MY_TAG ) )
+	{
+		// The tag does not exist
+		return;
+	}
+	
+	// If MY_TAG is collection, then iterator entered
+	// directly into beginning of the subscope of the MY_TAG.
+	// Now decode the iterator to the MY_TAG.MY_SUBTAG
+	
+	if( ! tausch_decode_to_tag( &iter, MY_SUBTAG ) )
+	{
+		// The tag does not exist
+		return;
+	}
+	
+	if( tausch_iter_is_null( &iter ) )
+	{
+		// The item is provided but does not contain any data
+		return;
+	}
+	
+	int32_t getval = 0;
+	if( ! tausch_read( &iter, &getval ) )
+	{
+		// the reading of the value failed
+		return;
+	}
+	
+	// If you want to overwrite the value in the message
+	
+	int32_t value = 43;
+	if( ! tausch_write( &iter, MY_SUBTAG, &value ) )
+	{
+		// overwriting failed
+		return;
+	}
+	
+	// To exit from the subscope
+	
+	if( ! tausch_decode_to_end( &iter ) )
+	{
+		// Failed to find the end of the scope
+		return;
+	}
+	
+	// To restart looking for another tag
+	
+	iter = iter_init;   // the easy initialization
+	
+	if( ! tausch_decode_to_tag( &iter, MY_ANOTHER_TAG ) )
+	{
+		// The tag does not exist
+		return;
+	}
+	
+}
+
+```
+
 
 ## Binary Format
 

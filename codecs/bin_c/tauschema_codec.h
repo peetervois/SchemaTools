@@ -1,4 +1,4 @@
-/**
+/*
  * TauSchema Codec C
  *
  * All rights reserved.
@@ -37,47 +37,57 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-
 /**
  * Enumeration of the TLV primitives
  */
 typedef enum
 {
-	TSCH_BOOL = 0,
-	TSCH_UINT,
-	TSCH_UINT_8,
-	TSCH_UINT_16,
-	TSCH_UINT_32,
-	TSCH_UINT_64,
-	TSCH_UINT_128,
-	TSCH_SINT,
-	TSCH_SINT_8,
-	TSCH_SINT_16,
-	TSCH_SINT_32,
-	TSCH_SINT_64,
-	TSCH_SINT_128,
-	TSCH_FLOAT,
-	TSCH_FLOAT_32,
-	TSCH_FLOAT_64,
-	TSCH_FLOAT_128,
-	TSCH_UTF8,
-	TSCH_BLOB,
-	TSCH_COLLECTION,
-	TSCH_VARIADIC
-}tausch_ntype_t;
+    TSCH_BOOL = 0,
+    TSCH_UINT,
+    TSCH_UINT_8,
+    TSCH_UINT_16,
+    TSCH_UINT_32,
+    TSCH_UINT_64,
+    TSCH_UINT_128,
+    TSCH_SINT,
+    TSCH_SINT_8,
+    TSCH_SINT_16,
+    TSCH_SINT_32,
+    TSCH_SINT_64,
+    TSCH_SINT_128,
+    TSCH_FLOAT,
+    TSCH_FLOAT_32,
+    TSCH_FLOAT_64,
+    TSCH_FLOAT_128,
+    TSCH_UTF8,
+    TSCH_BLOB,
+    TSCH_COLLECTION,
+    TSCH_VARIADIC
+} tausch_ntype_t;
 
 /**
  * Structure of defining the flat-tree row
  */
 typedef struct
 {
-	uint16_t	item; // Binary coded item number
-	char		*name; // Name of the item (for human / json)
-	char		*desc; // Description of the item, help text
-	uint16_t	ntype; // type number
-	uint16_t	sub; // table index to first subitem
-	uint16_t	next; // table index to next item on same scope
-}tausch_flatrow_t;
+    /// Binary coded item number
+    uint16_t item;
+
+    /// Name of the item (for human / json)
+    char *name;
+
+    /// Description of the item, help text
+    char *desc;
+
+    /// type number
+    uint16_t ntype;
+
+    /// table index to first subitem
+    uint16_t sub;
+
+    /// table index to next item on same scope
+    uint16_t next;
+} tausch_flatrow_t;
 
 /**
  * Runtime formatting of the buffer.
@@ -97,19 +107,39 @@ bool tausch_buf_is_eof( uint8_t *buf );
 
 typedef struct
 {
-	uint8_t		*ebuf; 	// Pointer to the buffer end,
-						//   if ebuf == NULL, then the iter is invalid.
-	uint8_t 	*idx; 	// Pointer to start of current iterator.
-	uint8_t		*next; 	// Pointer to index position of next item.
-	uint8_t		*val; 	// Pointer to the value field or NULL,
-						//   if val == next, then the iter is incomplete,
-						//   if val == NULL, then the value is null.
-	size_t		tag; 	// Tag value of the item.
-	size_t		vlen; 	// Length of the value part.
-	uint16_t    scope; 	// The scope depth of the structure.
-	uint8_t		lc;  	// The l and c bits of the tag, if lc == 4 then
-	                    //   the iterator points to end of buffer.
-}tausch_iter_t;
+    /// Pointer to the buffer end, if ebuf == NULL, then the iter is invalid.
+    uint8_t *ebuf;
+
+    /// Pointer to start of current iterator.
+    uint8_t *idx;
+
+    /// Pointer to index position of next item.
+    uint8_t *next;
+
+    /// Pointer to the value field or NULL,
+    /** if val == next, then the iter is incomplete,
+     * if val == next, then the iter is incomplete,
+     * if val == next, then the iter is incomplete,
+     * if val == NULL, then the value is null.
+     */
+    uint8_t *val;
+
+    /// Tag value of the item.
+    size_t tag;
+
+    /// Length of the value part.
+    size_t vlen;
+
+    /// The scope depth of the structure.
+    uint16_t scope;
+
+    /// The l and c bits of the tag,
+    /**  if lc == 4 then
+     * the iterator points to end of buffer.
+     */
+    uint8_t lc;
+
+} tausch_iter_t;
 
 /**
  * Compile-time initiation of the iterator
@@ -137,12 +167,13 @@ typedef struct
  */
 void tausch_iter_init( tausch_iter_t *iter, uint8_t *buf, size_t size );
 
-
 typedef struct
 {
-	uint8_t		*buf; // Pointer to the buffer start
-	size_t		len; // length of the buffer in bytes
-}tausch_blob_t;
+    /// Pointer to the buffer start
+    uint8_t *buf;
+    /// length of the buffer in bytes
+    size_t len;
+} tausch_blob_t;
 
 /**
  * Methods for copying data out from the TLV value field.
@@ -271,7 +302,7 @@ bool tausch_decode_to_next( tausch_iter_t *iter );
  * @return true if the iteration was successful
  * @return false if the iteration failed, and iterator is unusable
  */
-bool tausch_decode_to_eoscope( tausch_iter_t *iter );
+bool tausch_decode_to_end( tausch_iter_t *iter );
 
 /**
  * Advance the iterator to the next stuffing in the scope or next element
@@ -372,7 +403,7 @@ size_t tausch_read_typX( tausch_iter_t *iter, uint8_t *value, size_t len );
  *
  * @return 0 on failure
  * @return number of value bytes written, for null return 1
-*/
+ */
 size_t tausch_write_typX( tausch_iter_t *iter, size_t tag, uint8_t *value, size_t len );
 
 /**

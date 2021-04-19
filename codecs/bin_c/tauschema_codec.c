@@ -1,4 +1,4 @@
-/**
+/*
  * TauSchema Codec C
  *
  * All rights reserved.
@@ -327,7 +327,7 @@ bool tausch_decode_to_next( tausch_iter_t *iter )
  * @return true if the iteration was successful
  * @return false if the iteration failed, and iterator is unusable
  */
-bool tausch_decode_to_eoscope( tausch_iter_t *iter )
+bool tausch_decode_to_end( tausch_iter_t *iter )
 {
     uint16_t scope = iter->scope;
     do

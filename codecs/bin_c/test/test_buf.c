@@ -65,10 +65,10 @@ bool test_buf( void )
         tausch_iter_t iter = iterini;
 
         printf(" --- Testing of advancing into EOF. \n");
-        test( tausch_decode_to_eoscope(&iter),"tausch_decode_to_eoscope must return true on EOF.");
+        test( tausch_decode_to_end(&iter),"tausch_decode_to_eoscope must return true on EOF.");
         test( ! tausch_iter_is_complete(&iter), "the iter shall not be complete. ");
         test( tausch_buf_is_eof( iter.idx ), "the item shall point to EOF ");
-        test( tausch_decode_to_eoscope(&iter),"tausch_decode_to_eoscope must return true on EOF.");
+        test( tausch_decode_to_end(&iter),"tausch_decode_to_eoscope must return true on EOF.");
         test( ! tausch_iter_is_complete(&iter), "the iter shall not be complete. ");
         test( tausch_buf_is_eof( iter.idx ), "the item shall point to EOF ");
     }
@@ -97,7 +97,7 @@ bool test_buf( void )
         tausch_iter_t iter = iterini;
 
         printf(" --- Testing writing of the boolean. \n");
-        test( tausch_decode_to_eoscope(&iter),"tausch_decode_to_eoscope must return true on EOF.");
+        test( tausch_decode_to_end(&iter),"tausch_decode_to_eoscope must return true on EOF.");
         bool val = false;
         test( tausch_write( &iter, 22, (bool*)NULL ), "writing bool failed" );
         test( (iter.next - iter.idx) == 1, "must have been writing only one byte" );
@@ -162,7 +162,7 @@ bool test_buf( void )
         tausch_iter_t iter = iterini;
 
         printf(" --- Testing writing of the multibyte boolean. \n");
-        test( tausch_decode_to_eoscope(&iter),"tausch_decode_to_eoscope must return true on EOF.");
+        test( tausch_decode_to_end(&iter),"tausch_decode_to_eoscope must return true on EOF.");
         bool val = false;
         test( tausch_write( &iter, 22, &val ), "writing bool failed" );
         test( (iter.next - iter.idx) == 3, "must have been writing 3 bytes" );
@@ -179,7 +179,7 @@ bool test_buf( void )
         tausch_iter_t iter = iterini;
 
         printf(" --- Testing writing of typX. \n");
-        test( tausch_decode_to_eoscope(&iter),"tausch_decode_to_eoscope must return true on EOF.");
+        test( tausch_decode_to_end(&iter),"tausch_decode_to_eoscope must return true on EOF.");
 
         uint16_t val = 27;
         test( tausch_write( &iter, 35, &val), "writing UINT-16 failed" );
@@ -230,7 +230,7 @@ bool test_buf( void )
         tausch_iter_t iter = iterini;
 
         printf(" --- Testing writing of typX null. \n");
-        test( tausch_decode_to_eoscope(&iter),"tausch_decode_to_eoscope must return true on EOF.");
+        test( tausch_decode_to_end(&iter),"tausch_decode_to_eoscope must return true on EOF.");
         test( tausch_write( &iter, 32, NULL), "writing null failed" );
         test( (iter.next - iter.idx) == 2, "must have been writing 5 bytes" );
         test( tausch_iter_is_null( &iter), "iter must be as null" );
@@ -245,7 +245,7 @@ bool test_buf( void )
         uint32_t val = 10;
 
         printf(" --- Testing writing of scoped data. \n");
-        test( tausch_decode_to_eoscope(&iter),"tausch_decode_to_eoscope must return true on EOF.");
+        test( tausch_decode_to_end(&iter),"tausch_decode_to_eoscope must return true on EOF.");
         test( tausch_write_scope(&iter, 100), "writing of scope failed" );
         test( tausch_write_next(&iter), "advancing to next failed" );
         test( tausch_write(&iter, 1, &val), "writing value failed" );
@@ -257,7 +257,7 @@ bool test_buf( void )
         iter = iterini;
         test( tausch_decode_to_tag( &iter, 100), "finding tag 100 failed" );
         test( tausch_decode_to_tag( &iter, 1), "finding tag 100/1 failed" );
-        test( tausch_decode_to_eoscope( &iter ), "finding end failed" );
+        test( tausch_decode_to_end( &iter ), "finding end failed" );
         test( iter.idx[0] != 0x03, "iter must not be at the END tag" );
         test( tausch_write_next(&iter), "advancing to next failed" );
         test( tausch_write( &iter, 2, NULL), "writing null tag failed" );
@@ -271,7 +271,7 @@ bool test_buf( void )
         iter = iterini;
         test( tausch_decode_to_tag( &iter, 100), "finding tag 100 failed" );
         test( ! tausch_decode_to_stuffing( &iter), "finding stuffing must fail" );
-        test( tausch_decode_to_eoscope(&iter), "decoding to eoscope failed" );
+        test( tausch_decode_to_end(&iter), "decoding to eoscope failed" );
         test( tausch_decode_vluint(&iter) == 7, "in test the EOF must have been found" );
         test( tausch_decode_vluint(&iter) == ~0, "over the edge test failed" );
     }
