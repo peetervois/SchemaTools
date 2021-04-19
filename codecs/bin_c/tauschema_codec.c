@@ -107,16 +107,16 @@ size_t tausch_decode_vluint( tausch_iter_t *iter )
 	        iter->ebuf = NULL;
 	        return ~0;
 	    }
-		x = (size_t)(*iter->next) & 0x7f;
+		x = (size_t)(*iter->next);
 		if( (s+1) < (sizeof(size_t)*8) )
 		{
 			// we do not support bigger numbers for vluint
-			rv |= x << s;
+			rv |= (x & 0x7f) << s;
 			s += 7;
 		}
 		iter->next += 1;
 	}
-	while( (x & 0x80) & ( s < (sizeof(size_t)*8)) );
+	while( ((x & 0x80) == 0x80) && ( s < (sizeof(size_t)*8)) );
 	iter->val = iter->next;
 	return rv;
 }

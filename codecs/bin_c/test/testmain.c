@@ -12,6 +12,7 @@ int main( void )
     printf("\n\n");
     printf("Number of tests performed: %ld \n", count_tests );
     printf("   Number of tests failed: %ld \n", count_errors );
+    printf("\n\n");
     return 0;
 }
 
