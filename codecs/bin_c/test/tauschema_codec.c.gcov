@@ -1,0 +1,866 @@
+        -:    0:Source:/home/peeter/Projektid/SchemaTools/codecs/bin_c/tauschema_codec.c
+        -:    0:Graph:bin_c/tauschema_codec.gcno
+        -:    0:Data:bin_c/tauschema_codec.gcda
+        -:    0:Runs:13
+        -:    1:/**
+        -:    2: * TauSchema Codec C
+        -:    3: *
+        -:    4: * All rights reserved.
+        -:    5: *
+        -:    6: * Redistribution and use in source and binary forms, with or without
+        -:    7: * modification, are permitted provided that the following conditions are met:
+        -:    8: *
+        -:    9: * 1. Redistributions of source code must retain the above copyright notice,
+        -:   10: *    this list of conditions and the following disclaimer.
+        -:   11: * 2. Redistributions in binary form must reproduce the above copyright
+        -:   12: *    notice, this list of conditions and the following disclaimer in the
+        -:   13: *    documentation and/or other materials provided with the distribution.
+        -:   14: * 3. Neither the name of author nor the names of
+        -:   15: *    contributors may be used to endorse or promote products derived from
+        -:   16: *    this software without specific prior written permission.
+        -:   17: *
+        -:   18: * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+        -:   19: * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+        -:   20: * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+        -:   21: * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+        -:   22: * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+        -:   23: * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+        -:   24: * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+        -:   25: * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+        -:   26: * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+        -:   27: * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+        -:   28: * POSSIBILITY OF SUCH DAMAGE.
+        -:   29: *
+        -:   30: */
+        -:   31:
+        -:   32:
+        -:   33:#include "tauschema_codec.h"
+        -:   34:#include "string.h"
+        -:   35:
+        -:   36:
+        -:   37:/**
+        -:   38: * Runtime formatting of the buffer.
+        -:   39: * When at the root leve, end of scope is found, it means
+        -:   40: * no more items placed into buffer.
+        -:   41: *
+        -:   42: * @arg buf : uint8_t* - pointer to the buffer
+        -:   43: */
+      227:   44:void tausch_format_buf( uint8_t *buf )
+        -:   45:{
+      227:   46:    buf[0] = 0x07; // EOF marker END with tag > 0
+      227:   47:}
+        -:   48:
+        -:   49:/**
+        -:   50: * Test if the pointer pointing at buf on in the buf is EOF
+        -:   51: *
+        -:   52: * @arg buf : uint8_t* - pointer to the buffer
+        -:   53: */
+      500:   54:bool tausch_buf_is_eof( uint8_t *buf )
+        -:   55:{
+      500:   56:    return ( ((buf[0] & 3) == 0x03) && (buf[0] > 3) );
+        -:   57:}
+        -:   58:
+        -:   59:/**
+        -:   60: * Run-time initiation of the iterator
+        -:   61: *
+        -:   62: * @arg buf : uint8_t* - pointer to the buffer
+        -:   63: * @arg size : size_t - amount of data in the buffer
+        -:   64: */
+      213:   65:void tausch_iter_init( tausch_iter_t *iter, uint8_t *buf, size_t size )
+        -:   66:{
+      213:   67:    tausch_iter_t tm = TAUSCH_ITER_INIT( buf, size );
+      213:   68:    *iter = tm;
+      213:   69:}
+        -:   70:
+        -:   71:/**
+        -:   72: * Return true if iterator is ok false if it is broken
+        -:   73: */
+     7589:   74:bool tausch_iter_is_ok( tausch_iter_t *iter )
+        -:   75:{
+     7589:   76:	bool notok = false;
+     7589:   77:    notok |= iter->ebuf == NULL; // there is no buffer pointed
+     7589:   78:    notok |= iter->idx == NULL; // idx is pointing to nothing
+     7589:   79:    notok |= iter->idx >= iter->ebuf; // index is out of buffer or end of buffer
+     7589:   80:    notok |= iter->next == NULL; // next is pointing to nothing
+     7589:   81:    notok |= iter->next > iter->ebuf; // next is pointing out of buffer
+    7589*:   82:    notok |= (iter->next == iter->idx) && (iter->val != iter->next); // iter->val has incorrect value
+     7589:   83:    return ! notok;
+        -:   84:}
+        -:   85:
+        -:   86:/**
+        -:   87: * Return true if the iterator is complete
+        -:   88: */
+      989:   89:bool tausch_iter_is_complete( tausch_iter_t *iter )
+        -:   90:{
+        -:   91:    // we do not check if iter is ok here, because that would reduce dimensions
+      989:   92:    return iter->val != iter->next;
+        -:   93:}
+        -:   94:
+        -:   95:/**
+        -:   96: * Return true if the value is null
+        -:   97: */
+       52:   98:bool tausch_iter_is_null( tausch_iter_t *iter )
+        -:   99:{
+       52:  100:    return iter->val == NULL;
+        -:  101:}
+        -:  102:
+        -:  103:/**
+        -:  104: * Return true if the iterator is clean for write
+        -:  105: */
+      152:  106:bool tausch_iter_is_clean( tausch_iter_t *iter )
+        -:  107:{
+     152*:  108:    if( ! tausch_iter_is_ok( iter ) ) return false;
+     152*:  109:    return (iter->next == iter->idx) && (iter->val == iter->next);
+        -:  110:}
+        -:  111:
+        -:  112:/**
+        -:  113: * Return size of the stuffing when the iter is stuffing, otherwise 0
+        -:  114: */
+       78:  115:size_t tausch_iter_is_stuffing( tausch_iter_t *iter )
+        -:  116:{
+      78*:  117:    if( ! tausch_iter_is_ok( iter ) ) return 0;
+       78:  118:    if( iter-> tag != 0 ) return 0;
+       39:  119:    return iter->next - iter->idx;
+        -:  120:}
+        -:  121:
+        -:  122:/**
+        -:  123: * Decode from binary buffer the variable length unsigned integer
+        -:  124: *
+        -:  125: * @arg iter - the iterator from where to read
+        -:  126: *
+        -:  127: * @return the decoded tag value, or ~0 (all bits set) on failure
+        -:  128: *
+        -:  129: */
+     2235:  130:size_t tausch_decode_vluint( tausch_iter_t *iter )
+        -:  131:{
+     2235:  132:    size_t rv = 0;
+     2235:  133:    size_t x = 0;
+     2235:  134:    uint32_t s = 0;
+    2235*:  135:    if( iter->next != iter->val ) return ~0;
+        -:  136:	do
+        -:  137:	{
+     2989:  138:	    if( ! tausch_iter_is_ok( iter ) ) return ~0;
+     2987:  139:	    if( iter->next >= iter->ebuf )
+        -:  140:	    {
+        5:  141:	        iter->ebuf = NULL;
+        5:  142:	        return ~0;
+        -:  143:	    }
+     2982:  144:		x = (size_t)(*iter->next);
+     2982:  145:		if( (s+1) < (sizeof(size_t)*8) )
+        -:  146:		{
+        -:  147:			// we do not support bigger numbers for vluint
+     2982:  148:			rv |= (x & 0x7f) << s;
+     2982:  149:			s += 7;
+        -:  150:		}
+     2982:  151:		iter->next += 1;
+        -:  152:	}
+     2982:  153:	while( ((x & 0x80) == 0x80) && ( s < (sizeof(size_t)*8)) );
+     2228:  154:	iter->val = iter->next;
+     2228:  155:	return rv;
+        -:  156:}
+        -:  157:
+        -:  158:/**
+        -:  159: * Encode to binary buffer the variable length unsigned integer
+        -:  160: *
+        -:  161: * @arg iter - the iterator where towrite
+        -:  162: * @arg val - the value to write
+        -:  163: *
+        -:  164: * @return true on success
+        -:  165: * @return false on failure
+        -:  166: */
+      448:  167:bool tausch_encode_vluint( tausch_iter_t *iter, size_t val )
+        -:  168:{
+      448:  169:    size_t x = val;
+      448:  170:    uint8_t b = 0;
+     448*:  171:    if( tausch_iter_is_complete(iter) ) return false; // the iterator is complete already
+        -:  172:    do
+        -:  173:    {
+     617*:  174:        if( ! tausch_iter_is_ok( iter ) ) return false;
+      617:  175:        if( x & (~0x7f) )
+      169:  176:            b = 0x80;
+        -:  177:        else
+      448:  178:            b = 0x00;
+      617:  179:        b |= x & 0x7f;
+      617:  180:        *(iter->next++) = b;
+      617:  181:        x >>= 7;
+        -:  182:    }
+      617:  183:    while( x );
+      448:  184:    iter->val = iter->next;
+      448:  185:    return true;
+        -:  186:}
+        -:  187:
+        -:  188:/**
+        -:  189: * Calculate memory length of the resulting vluint
+        -:  190: *
+        -:  191: * @arg val - the value to encode
+        -:  192: *
+        -:  193: * @return number of bytes it would take
+        -:  194: */
+       91:  195:size_t tausch_vluint_len( size_t val )
+        -:  196:{
+       91:  197:    unsigned int *x = (unsigned int *)&val;
+       91:  198:    size_t rv = 0; // now: rv is number of msbits zeroed
+      182:  199:    for( int i = (sizeof(size_t)/sizeof(unsigned int)-1); i >= 0; i-- )
+        -:  200:    {
+      182:  201:        if( x[i] == 0 )
+        -:  202:        {
+       91:  203:            rv += 32;
+        -:  204:        }
+        -:  205:        else
+        -:  206:        {
+       91:  207:            rv += __builtin_clz( x[i] );
+       91:  208:            break;
+        -:  209:        }
+        -:  210:    }
+       91:  211:    rv = (sizeof(size_t)<<3) - rv; // now: rv is number of significant bits
+       91:  212:    rv = (rv+6) / 7; // now: rv is number of bytes
+       91:  213:    return rv;
+        -:  214:}
+        -:  215:
+        -:  216:/**
+        -:  217: * Decodes from binary buffer next TLV item and stores info
+        -:  218: * inside iter element. It does not skip over stuffing.
+        -:  219: *
+        -:  220: * @return true if the iteration was successful
+        -:  221: * @return false if the iteration failed, and iterator is unusable
+        -:  222: */
+     1444:  223:bool tausch_decode_next( tausch_iter_t *iter )
+        -:  224:{
+     1444:  225:    size_t tag = 0;
+     1444:  226:    size_t len = 0;
+     1444:  227:    iter->idx = iter->next;
+     1444:  228:    iter->val = iter->next;
+        -:  229:    while( 1 )
+        -:  230:    {
+     1470:  231:        tag = tausch_decode_vluint( iter );
+     1470:  232:        if( ! tausch_iter_is_ok( iter ) ) return false;
+     1468:  233:        if( (tag & 3) == 3 )
+        -:  234:        {
+        -:  235:            // end of scope
+      226:  236:            if( (iter->scope == 0) || (tag > 3) )
+        -:  237:            {
+        -:  238:                // at the root level we stay at the END marker
+        -:  239:                // when tag part of the END is not 0, then it is also end of file
+      200:  240:                tausch_iter_init( iter, iter->idx, iter->ebuf - iter->idx );
+      200:  241:                return false;
+        -:  242:            }
+       26:  243:            iter->scope -= 1;
+       26:  244:            iter->idx = iter->next;
+       26:  245:            continue;
+        -:  246:        }
+     1242:  247:        break;
+        -:  248:    }
+     1242:  249:    len = 0;
+     1242:  250:    if( (tag & 1) == 1 )
+        -:  251:    {
+        -:  252:        // collection or variadic tag
+       27:  253:        iter->scope += 1;
+        -:  254:    }
+     1242:  255:    if( (tag & 2) == 2 )
+        -:  256:    {
+      755:  257:        len = tausch_decode_vluint( iter );
+     755*:  258:        if( ! tausch_iter_is_ok( iter ) ) return false;
+        -:  259:    }
+     1242:  260:    iter->lc = tag & 3;
+     1242:  261:    iter->tag = tag >> 2;
+     1242:  262:    iter->vlen = len;
+     1242:  263:    if( len > 0 )
+        -:  264:    {
+      755:  265:        if( ((iter->next + len) <= iter->next) || ((iter->next + len) > iter->ebuf) )
+        -:  266:        {
+        1:  267:            iter->val = NULL;
+        1:  268:            iter->ebuf = NULL;
+        1:  269:            return false;
+        -:  270:        }
+      754:  271:        iter->val = iter->next;
+      754:  272:        iter->next += len; // idx may now equel to exbuf
+        -:  273:    }
+        -:  274:    else
+        -:  275:    {
+      487:  276:        iter->val = NULL;
+        -:  277:    }
+        -:  278:
+     1241:  279:    return true;
+        -:  280:}
+        -:  281:
+        -:  282:/**
+        -:  283: * Call this method when writing of the element has been finished.
+        -:  284: * It does advance the iterator so that new element may be written
+        -:  285: * right after the current element. Note that in case you are over-
+        -:  286: * writing the existing binary TLV, then use decode_next() instead.
+        -:  287: * This method is used when you are appending to the tlv, it does
+        -:  288: * destroy the binary structure beneath.
+        -:  289: *
+        -:  290: * @return true if the iteration was successful
+        -:  291: * @return false if the iteration failed, and iterator is unusable
+        -:  292: */
+      110:  293:bool tausch_write_next( tausch_iter_t *iter )
+        -:  294:{
+     110*:  295:    if( ! tausch_iter_is_ok( iter ) ) return false;
+      110:  296:    iter->idx = iter->next;
+      110:  297:    iter->val = iter->idx;
+      110:  298:    iter->vlen = 0;
+      110:  299:    iter->tag = 0;
+      110:  300:    iter->lc= 0;
+        -:  301:    // note: iter->scope stays as it is
+      110:  302:    return true;
+        -:  303:}
+        -:  304:
+        -:  305:/**
+        -:  306: * Advance the iterator to the element next item on the same scope
+        -:  307: *
+        -:  308: * @return true if the iteration was successful
+        -:  309: * @return false if the iteration failed, and iterator is unusable
+        -:  310: */
+       78:  311:bool tausch_decode_to_next( tausch_iter_t *iter )
+        -:  312:{
+       78:  313:    uint16_t scope = iter->scope;
+        -:  314:    do
+        -:  315:    {
+       78:  316:        if( ! tausch_decode_next( iter ) ) return false;
+      52*:  317:        if( ! tausch_iter_is_ok( iter ) ) return false;
+        -:  318:    }
+       52:  319:    while( iter->scope > scope );
+       52:  320:    return true;
+        -:  321:}
+        -:  322:
+        -:  323:
+        -:  324:/**
+        -:  325: * Advance the iterator to the element next item after end of current scope
+        -:  326: *
+        -:  327: * @return true if the iteration was successful
+        -:  328: * @return false if the iteration failed, and iterator is unusable
+        -:  329: */
+      109:  330:bool tausch_decode_to_eoscope( tausch_iter_t *iter )
+        -:  331:{
+      109:  332:    uint16_t scope = iter->scope;
+        -:  333:    do
+        -:  334:    {
+      608:  335:        if( ! tausch_decode_next( iter ) )
+        -:  336:        {
+      96*:  337:            if( ! tausch_iter_is_ok( iter ) ) return false;
+       96:  338:            else return true; // EOF
+        -:  339:        }
+        -:  340:    }
+      512:  341:    while( iter->scope >= scope );
+       13:  342:    return true;
+        -:  343:}
+        -:  344:
+        -:  345:/**
+        -:  346: * Advance the iterator to the next stuffing in the scope or next element
+        -:  347: * after end of scope or to the EOF
+        -:  348: *
+        -:  349: * @return true if the iteration was successful
+        -:  350: * @return false if the iteration failed, and iterator is unusable
+        -:  351: */
+       32:  352:bool tausch_decode_to_stuffing( tausch_iter_t *iter )
+        -:  353:{
+       32:  354:    uint16_t scope = iter->scope;
+        -:  355:    do
+        -:  356:    {
+       64:  357:        if( ! tausch_decode_next( iter ) )
+        -:  358:        {
+      13*:  359:            if( ! tausch_iter_is_ok( iter ) ) return false;
+       13:  360:            else return true; // EOF
+        -:  361:        }
+       51:  362:        if( (iter->tag == 0) && ( iter->lc != 1) && (iter->scope == scope) )
+        -:  363:        {
+        -:  364:            // stuffing has been found
+       13:  365:            return true;
+        -:  366:        }
+        -:  367:    }
+       38:  368:    while( iter->scope >= scope );
+        6:  369:    return false;
+        -:  370:}
+        -:  371:
+        -:  372:/**
+        -:  373: * Advance the iterator to the next tag in the scope or next element
+        -:  374: * after end of scope
+        -:  375: *
+        -:  376: * @arg tag - the tag that is looked for
+        -:  377: *
+        -:  378: * @return true if the iteration was successful
+        -:  379: * @return false if the iteration failed, and iterator is unusable
+        -:  380: */
+      163:  381:bool tausch_decode_to_tag( tausch_iter_t *iter, size_t tag )
+        -:  382:{
+      163:  383:    uint16_t scope = iter->scope;
+        -:  384:    do
+        -:  385:    {
+      651:  386:        if( ! tausch_decode_next( iter ) )
+        -:  387:        {
+      39*:  388:            if( ! tausch_iter_is_ok( iter ) ) return false;
+       39:  389:            else return false; // EOF the tag was not found
+        -:  390:        }
+     612*:  391:        if( ! tausch_iter_is_ok( iter ) ) return false;
+      612:  392:        if( (iter->tag == tag) && (iter->lc != 3) && ( (iter->scope - (iter->lc == 1)) == scope) )
+        -:  393:        {
+        -:  394:            // stuffing has been found
+      117:  395:            return true;
+        -:  396:        }
+        -:  397:    }
+      495:  398:    while( iter->scope >= scope );
+        7:  399:    return false;
+        -:  400:}
+        -:  401:
+        -:  402:
+        -:  403:/**
+        -:  404: * Turn the element pointed by iterator into stuffing.
+        -:  405: * If the iterator is incomplete, then it creates.
+        -:  406: *
+        -:  407: * @arg len - the amount of bytes to write.
+        -:  408: *
+        -:  409: * @return true if the stuffing was successful.
+        -:  410: * @return false if the stuffing was unsuccessful.
+        -:  411: */
+       39:  412:bool tausch_write_stuffing( tausch_iter_t *iter, size_t len )
+        -:  413:{
+        -:  414:    // FIXME: check if the usage of this method matches what it does, like what happens with idx
+      39*:  415:    if( ! tausch_iter_is_ok( iter ) ) return false;
+       39:  416:    size_t totlen = iter->next - iter->idx;
+       39:  417:    tausch_iter_t cpy = *iter; // copy the original iterator
+       39:  418:    bool is_eof = tausch_buf_is_eof( iter->idx );
+       39:  419:    if( ! tausch_iter_is_complete( iter ) )
+        -:  420:    {
+        -:  421:        // the iterator is incomplete
+       39:  422:        totlen =len;
+        -:  423:    }
+       39:  424:    bool finalize( bool rv )
+        -:  425:    {
+       39:  426:        iter->tag = 0;
+      39*:  427:        if( !rv ) *iter = cpy;
+      39*:  428:        if( is_eof && (iter->next < iter->ebuf) ) tausch_format_buf( iter->next );
+       39:  429:        return rv;
+        -:  430:    }
+      39*:  431:    if( totlen < 1 ) return finalize( false );
+      39*:  432:    if( ((iter->idx + totlen) <= iter->idx) || ((iter->idx + totlen) > iter->ebuf) ) return finalize( false );
+       39:  433:    iter->next = iter->idx;
+       39:  434:    iter->val = iter->next;
+       39:  435:    size_t tlv = 0;
+       39:  436:    if( totlen == 1 )
+        -:  437:    {
+      13*:  438:        if( ! tausch_encode_vluint( iter, tlv ) ) return finalize( false );
+       13:  439:        iter->val = NULL;
+        -:  440:    }
+        -:  441:    else
+        -:  442:    {
+       26:  443:        tlv = 2;
+      26*:  444:        if( ! tausch_encode_vluint( iter, tlv ) ) return finalize( false );
+       26:  445:        tlv = totlen - (size_t)iter->next + (size_t)iter->idx;
+       26:  446:        size_t lv  = tausch_vluint_len( tlv ) , xv = tlv;
+        -:  447:        // find the amount of exact data
+       26:  448:        do { xv =tlv - lv; lv = tausch_vluint_len( xv ); } while( (xv+lv) != tlv );
+      26*:  449:        if( ! tausch_encode_vluint( iter, xv ) ) return finalize( false );
+       26:  450:        iter->val = iter->next;
+       26:  451:        tlv = totlen - (size_t)iter->next + (size_t)iter->idx;
+       26:  452:        memset( iter->next, 0, tlv );
+        -:  453:    }
+       39:  454:    iter->next = iter->idx + totlen;
+       39:  455:    return finalize( true );
+        -:  456:}
+        -:  457:
+        -:  458:
+        -:  459:/**
+        -:  460: * Open new scope on the binary stream. Scopes are COLLECTION or VARIADIC
+        -:  461: *
+        -:  462: * @arg iter - the iterator where to append the scope
+        -:  463: * @arg tag - the tag of the scope
+        -:  464: *
+        -:  465: * @return false on failure
+        -:  466: * @return true on success
+        -:  467: */
+       25:  468:bool tausch_write_scope( tausch_iter_t *iter, size_t tag )
+        -:  469:{
+      25*:  470:    if( !tausch_iter_is_ok( iter ) ) return false;
+       25:  471:    if( tausch_iter_is_complete( iter ) ) return false;   // scope can only be appended
+        -:  472:    if( iter->scope == ~(typeof(iter->scope))0 ) return false;   // no more scopes can be added
+       23:  473:    size_t k = tag;
+       23:  474:    k <<= 2;
+       23:  475:    k += 1;
+       23:  476:    bool is_eof = tausch_buf_is_eof( iter->idx );
+       23:  477:    if( !tausch_encode_vluint( iter, k ) || (iter->next >= iter->ebuf) )
+        -:  478:    {
+        9:  479:        iter->next = iter->idx;
+        9:  480:        if( is_eof && (iter->next < iter->ebuf) ) tausch_format_buf( iter->next );
+        9:  481:        return false;
+        -:  482:    }
+       14:  483:    if( is_eof && (iter->next < iter->ebuf) ) tausch_format_buf( iter->next );
+       14:  484:    iter->val = NULL;
+       14:  485:    iter->lc = 1;
+       14:  486:    iter->scope += 1;
+       14:  487:    iter->tag = tag;
+       14:  488:    return true;
+        -:  489:}
+        -:  490:
+        -:  491:/**
+        -:  492: * Close lastly open scope
+        -:  493: *
+        -:  494: * @arg iter - the iterator where to append the scope
+        -:  495: *
+        -:  496: * @return false on failure
+        -:  497: * @return true on success
+        -:  498: */
+       13:  499:bool tausch_write_end( tausch_iter_t *iter )
+        -:  500:{
+      13*:  501:    if( !tausch_iter_is_ok( iter ) ) return false;
+      13*:  502:    if( tausch_iter_is_complete( iter ) ) return false;   // end of scope can only be appended
+      13*:  503:    if( iter->scope <= 0 ) return false;   // nothing to close
+       13:  504:    size_t k = 3;
+       13:  505:    bool is_eof = tausch_buf_is_eof( iter->idx );
+       13:  506:    if( !tausch_encode_vluint( iter, k ) || (iter->next >= iter->ebuf) )
+        -:  507:    {
+    #####:  508:        iter->next = iter->idx;
+    #####:  509:        if( is_eof && (iter->next < iter->ebuf) ) tausch_format_buf( iter->next );
+    #####:  510:        return false;
+        -:  511:    }
+       13:  512:    if( is_eof && (iter->next < iter->ebuf) ) tausch_format_buf( iter->next );
+       13:  513:    iter->val = NULL;
+       13:  514:    iter->lc = 3;
+       13:  515:    iter->scope -= 1;
+       13:  516:    iter->tag = ~0;
+       13:  517:    return true;
+        -:  518:}
+        -:  519:
+        -:  520:/**
+        -:  521: * Read the iterator value field as BOOL
+        -:  522: *
+        -:  523: * @return true if the read was successful
+        -:  524: * @return false if the read was unsuccessful
+        -:  525: */
+       52:  526:bool tausch_read_bool( tausch_iter_t *iter, bool *value )
+        -:  527:{
+      52*:  528:    if( ! tausch_iter_is_ok( iter ) ) return false;
+      52*:  529:    if( ! tausch_iter_is_complete( iter ) ) return false;
+      52*:  530:    if( value == NULL ) return false;
+       52:  531:    if( tausch_iter_is_stuffing( iter ) )
+        -:  532:    {
+       13:  533:        *value = false;
+       13:  534:        return true;
+        -:  535:    }
+       39:  536:    if( iter->vlen == 0 )
+        -:  537:    {
+       13:  538:        *value = true;
+       13:  539:        return true;
+        -:  540:    }
+       39:  541:    else for( int i=0; i < iter->vlen; i++ )
+        -:  542:    {
+       26:  543:        if( iter->val[i] != 0 )
+        -:  544:        {
+       13:  545:            *value = true;
+       13:  546:            return true;
+        -:  547:        }
+        -:  548:    }
+       13:  549:    *value = false;
+       13:  550:    return true;
+        -:  551:}
+        -:  552:
+        -:  553:/**
+        -:  554: * Write the iterator value field as BOOL.
+        -:  555: * When the value is NULL then the value is considered true and it is stored
+        -:  556: * in the field in shortest possible way (tag only). Otherwise as uint8_t
+        -:  557: * or the entire existing field is filled with value.
+        -:  558: *
+        -:  559: * @arg iter - the iterator
+        -:  560: * @arg value - pointer to value field, if NULL then it is considered true
+        -:  561: *
+        -:  562: * @return true if the read was successful
+        -:  563: * @return false if the read was unsuccessful
+        -:  564: */
+       65:  565:bool tausch_write_bool( tausch_iter_t *iter, size_t tag, bool *value )
+        -:  566:{
+      65*:  567:    if( ! tausch_iter_is_ok( iter ) ) return false;
+       65:  568:    bool val = true;
+       65:  569:    if( value != NULL ) val = *value;
+       65:  570:    bool is_eof = tausch_buf_is_eof( iter->idx );
+       65:  571:    tausch_iter_t cpy = *iter;
+       65:  572:    bool finalize( bool rv )
+        -:  573:    {
+      65*:  574:        if( !rv ) *iter = cpy;
+       65:  575:        if( is_eof && (iter->next < iter->ebuf) ) tausch_format_buf( iter->next );
+       65:  576:        return rv;
+        -:  577:    }
+        -:  578:
+       65:  579:    if( ! tausch_iter_is_complete( iter ) )
+        -:  580:    {
+        -:  581:        // Note if you want to append it in non space saving way, then
+        -:  582:        // before calling this method, do tausch_write_typX( iter, &tag, &value, 1 )
+       26:  583:        if( ! value )
+        -:  584:        {
+        -:  585:            // Append the element in a space saving way.
+       13:  586:            size_t tlv = tag << 2;
+      13*:  587:            if( ! tausch_encode_vluint( iter, tlv ) ) return finalize( false );
+       13:  588:            iter->val = NULL;
+        -:  589:        }
+        -:  590:        else
+        -:  591:        {
+        -:  592:            // Write the item as uint8_t
+      13*:  593:            if( ! tausch_write_typX( iter, tag, (uint8_t*)&val, sizeof(uint8_t))) return finalize( false );
+        -:  594:        }
+       26:  595:        iter->tag = tag;
+       26:  596:        return finalize( true );
+        -:  597:    }
+        -:  598:    else
+        -:  599:    {
+        -:  600:        // the iterator already has been read, we are overwriting
+       39:  601:        size_t totlen = iter->next - iter->idx;
+       39:  602:        tausch_iter_t tm = *iter;
+       39:  603:        tm.next = tm.idx;
+       39:  604:        tm.val = tm.next;
+       39:  605:        tm.ebuf = iter->next;
+       39:  606:        size_t bytes = tausch_vluint_len( tag << 2 );
+       39:  607:        if( totlen < bytes )
+        -:  608:        {
+    #####:  609:            return finalize( false ); // can not encode, not enough space in it
+        -:  610:        }
+       39:  611:        else if( totlen <= (bytes+1) )
+        -:  612:        {
+        -:  613:            // only true value can be encoded
+       26:  614:           if( val == true )
+        -:  615:           {
+       13:  616:               size_t tlv = tag << 2;
+      13*:  617:               if( ! tausch_encode_vluint( &tm, tlv+2 ) ) return finalize( false );
+        -:  618:               // append the single byte, length 0
+       13:  619:               if( totlen > bytes )
+        -:  620:               {
+    #####:  621:                   *(tm.next++) = 0x00;
+        -:  622:               }
+       13:  623:               iter->tag = tag;
+        -:  624:           }
+        -:  625:           else // val == false
+        -:  626:           {
+      13*:  627:               if( ! tausch_write_stuffing( &tm, totlen ) ) return finalize( false );
+       13:  628:               iter->tag = 0;
+        -:  629:           }
+       26:  630:           return finalize( true );
+        -:  631:        }
+        -:  632:        else
+        -:  633:        {
+        -:  634:            // full TLV has to be written
+       13:  635:            size_t tlv = tag << 2;
+       13:  636:            tlv += 2;   // encode the len too
+      13*:  637:            if( ! tausch_encode_vluint( &tm, tlv ) ) return finalize( false );
+       13:  638:            tlv = totlen - bytes - 1;   // now: tlv is length
+      13*:  639:            if( ! tausch_encode_vluint( &tm, tlv ) ) return finalize( false );
+       26:  640:            while( tm.next < tm.ebuf )
+        -:  641:            {
+       13:  642:                *(tm.next++) = val;
+       13:  643:                val = 0;
+        -:  644:            }
+       13:  645:            iter->tag = tag;
+       13:  646:            return finalize( true );
+        -:  647:        }
+        -:  648:    }
+        -:  649:
+        -:  650:    //return finalize( true );
+        -:  651:}
+        -:  652:
+        -:  653:
+        -:  654:/**
+        -:  655: * Read the iterator value field as any finite value
+        -:  656: *
+        -:  657: * @arg iter - the iterator
+        -:  658: * @arg value - pointer to the value to copy the value over
+        -:  659: * @arg len - length of the finite value memory field
+        -:  660: *
+        -:  661: * @return 0 on failure
+        -:  662: * @return number of bytes read out
+        -:  663: */
+       52:  664:size_t tausch_read_typX( tausch_iter_t *iter, uint8_t *value, size_t len )
+        -:  665:{
+      52*:  666:    if( ! tausch_iter_is_ok( iter ) ) return 0;
+      52*:  667:    if( value == NULL ) return 0;
+      52*:  668:    if( iter->vlen != len ) return 0;
+       52:  669:    memcpy( (void*)value, (void*)iter->val, len);
+       52:  670:    return len;
+        -:  671:}
+        -:  672:
+        -:  673:/**
+        -:  674: * Write to the location of iterator any finite value. When the iter already
+        -:  675: * contains an element, it does verify it the tags match and the lengths match.
+        -:  676: * When value is NULL, and length is 0 a null item will be written.
+        -:  677: * When value is NULL and length is >0 all value field is replaced with 0x00
+        -:  678: *
+        -:  679: * @arg iter - the iterator
+        -:  680: * @arg tag - the tag value
+        -:  681: * @arg value - pointer to the value to copy the value from
+        -:  682: * @arg len - length of the finite value memory field
+        -:  683: *
+        -:  684: * @return 0 on failure
+        -:  685: * @return number of value bytes written, for null return 1
+        -:  686:*/
+      256:  687:size_t tausch_write_typX( tausch_iter_t *iter, size_t tag, uint8_t *value, size_t len )
+        -:  688:{
+     256*:  689:    if( ! tausch_iter_is_ok( iter ) ) return 0;
+      256:  690:    bool is_eof = tausch_buf_is_eof( iter->idx );
+      256:  691:    tausch_iter_t cpy = *iter;
+      230:  692:    size_t finalize( size_t rv )
+        -:  693:    {
+      230:  694:        if( !rv ) *iter = cpy;
+      230:  695:        if( is_eof && (iter->next < iter->ebuf) ) tausch_format_buf( iter->next );
+      230:  696:        return rv;
+        -:  697:    }
+      256:  698:    if( tausch_iter_is_complete( iter ) )
+        -:  699:    {
+        -:  700:        // we are overwriting the meomry
+      104:  701:        if( iter->tag != tag ) return finalize( 0 );
+       91:  702:        if( value != NULL )
+        -:  703:        {
+        -:  704:            // simple overwrite of the value
+       52:  705:            if( iter->vlen != len ) return finalize( 0 ); // the length must match
+       13:  706:            memcpy( iter->val, value, len );
+       13:  707:            return len;
+        -:  708:        }
+       39:  709:        else if( len > 0 )
+        -:  710:        {
+        -:  711:            // we are zeroing the  value field
+      13*:  712:            if( iter->vlen != len ) return finalize( 0 ); // lengths must match in this case
+       13:  713:            memset( iter->val, 0x00, len );
+       13:  714:            return len;
+        -:  715:        }
+        -:  716:        else
+        -:  717:        {
+        -:  718:            // we are turning the item to null in place
+      26*:  719:            if( iter->vlen == 0 ) return finalize( 1 ); // it is already null
+       26:  720:            tag <<= 2;
+        -:  721:            // start new iterator for overwriting
+       26:  722:            tausch_iter_t tm = *iter;
+       26:  723:            tm.next = tm.idx;
+       26:  724:            tm.val = tm.next;
+       26:  725:            tm.ebuf = iter->next;
+       26:  726:            tm.lc = 0;
+       26:  727:            tm.vlen = 0;
+      26*:  728:            if( ! tausch_encode_vluint( &tm, tag ) ) return finalize( 0 );
+       26:  729:            iter->next = tm.next;
+       26:  730:            iter->val = NULL;
+       26:  731:            iter->vlen = 0;
+       26:  732:            iter->lc = 0;
+        -:  733:            // fill the remainder with stuffing
+       26:  734:            size_t stlen = tm.ebuf - tm.next;
+       26:  735:            tm.idx = tm.next;
+      26*:  736:            if( ! tausch_write_stuffing( &tm, stlen ) ) return finalize( 0 );
+       26:  737:            return finalize( 1 );
+        -:  738:        }
+        -:  739:    }
+      152:  740:    else if ( ! tausch_iter_is_clean( iter ) )
+        -:  741:    {
+    #####:  742:        return finalize( 0 ); // if the iter is not clean we can not write
+        -:  743:    }
+        -:  744:    else
+        -:  745:    {
+        -:  746:        // we are appending to the stream
+      152:  747:        iter->tag = tag;
+      152:  748:        tag <<= 2;
+      152:  749:        if( len > 0 ) tag += 2;
+      152:  750:        iter->lc = tag & 3;
+        -:  751:        // write the tag
+     152*:  752:        if( ! tausch_encode_vluint(iter, tag) ) return finalize( 0 );
+      152:  753:        if( len == 0 )
+        -:  754:        {
+        -:  755:            // null value was requested
+       35:  756:            iter->val = NULL;
+       35:  757:            iter->vlen = 0;
+       35:  758:            return finalize( 1 );
+        -:  759:        }
+        -:  760:        // write the len
+     117*:  761:        if( ! tausch_encode_vluint(iter, len) ) return finalize( 0 );
+        -:  762:        // write the value
+     117*:  763:        if( ((iter->next + len) <= iter->next) || ((iter->next + len) > iter->ebuf) ) return finalize( 0 ); // overflow
+      117:  764:        if( value != NULL )
+        -:  765:        {
+      104:  766:            memcpy( iter->next, value, len );
+        -:  767:        }
+        -:  768:        else
+        -:  769:        {
+       13:  770:            memset( iter->next, 0x00, len );
+        -:  771:        }
+      117:  772:        iter->next += len;
+      117:  773:        iter->vlen = len;
+      117:  774:        return finalize( len );
+        -:  775:    }
+        -:  776:}
+        -:  777:
+        -:  778:/**
+        -:  779: * Read the iterator value field as UINT-X
+        -:  780: *
+        -:  781: * @return 0 unsuccessful
+        -:  782: * @return number of bytes read out
+        -:  783: */
+       13:  784:size_t tausch_read_blob( tausch_iter_t *iter, tausch_blob_t *value )
+        -:  785:{
+      13*:  786:    if( ! tausch_iter_is_ok( iter ) ) return 0;
+      13*:  787:    if( value == NULL ) return 0;
+      13*:  788:    if( value->len < iter->vlen ) return 0;
+       13:  789:    memcpy( (void*)value->buf, (void*)iter->val, iter->vlen);
+       13:  790:    return iter->vlen;
+        -:  791:}
+        -:  792:
+        -:  793:/**
+        -:  794: * Write the blob into the value field.
+        -:  795: * When overwriting the blob size must match with the blob size in binary
+        -:  796: *
+        -:  797: * @arg iter - the iterator
+        -:  798: * @arg tag - the tag value
+        -:  799: * @arg value - the pointer to blob
+        -:  800: *
+        -:  801: * @return 0 on failure
+        -:  802: * @return size written on success
+        -:  803: */
+       39:  804:size_t tausch_write_blob( tausch_iter_t *iter, size_t tag, tausch_blob_t *value )
+        -:  805:{
+       39:  806:    if( value == NULL )
+        -:  807:    {
+       13:  808:        return tausch_write_typX( iter, tag, NULL, 0 );
+        -:  809:    }
+       26:  810:    return tausch_write_typX( iter, tag, value->buf, value->len );
+        -:  811:}
+        -:  812:
+        -:  813:/**
+        -:  814: * Write the string into the value field.
+        -:  815: * When overwriting the string size must be smaller equal to the binary size.
+        -:  816: * When string is shorter, it is padded with zeroes.
+        -:  817: *
+        -:  818: * @arg iter - the iterator
+        -:  819: * @arg tag - the tag value
+        -:  820: * @arg value - the pointer to string
+        -:  821: *
+        -:  822: * @return 0 on failure
+        -:  823: * @return size written on success
+        -:  824: */
+       26:  825:size_t tausch_write_utf8( tausch_iter_t *iter, size_t tag, char *value )
+        -:  826:{
+       26:  827:    if( value == NULL )
+        -:  828:    {
+    #####:  829:        return tausch_write_typX( iter, tag, NULL, 0 );
+        -:  830:    }
+      26*:  831:    if( ! tausch_iter_is_ok( iter ) ) return 0;
+       26:  832:    size_t stlen = strlen( value );
+       26:  833:    if( tausch_iter_is_complete( iter ) )
+        -:  834:    {
+      13*:  835:        if( tausch_iter_is_null( iter ) ) return 0; // the iter is null
+      13*:  836:        if( iter->tag != tag ) return 0; // the tag must be the same
+      13*:  837:        if( stlen > iter->vlen ) return 0; // the string does not fill in
+       13:  838:        memcpy( iter->val, value, stlen );
+       13:  839:        memset( iter->val + stlen, 0x00, iter->vlen-stlen );
+       13:  840:        return iter->vlen;
+        -:  841:    }
+        -:  842:    else
+        -:  843:    {
+       13:  844:        return tausch_write_typX( iter, tag, (uint8_t*)value, stlen );
+        -:  845:    }
+        -:  846:}
+        -:  847:
+        -:  848:
+        -:  849:/**
+        -:  850: * Get the length of the TLV value field
+        -:  851: */
+       52:  852:size_t tausch_iter_vlen( tausch_iter_t *iter )
+        -:  853:{
+      52*:  854:    if( ! tausch_iter_is_ok( iter ) ) return 0;
+       52:  855:    if( iter->val == NULL ) return 0;
+       39:  856:    if( tausch_iter_is_complete( iter ) )
+       26:  857:        return iter->vlen;
+       13:  858:    return 0;
+        -:  859:}
+        -:  860:
+        -:  861:
+        -:  862:
