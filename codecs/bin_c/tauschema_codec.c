@@ -35,11 +35,45 @@
 
 
 /**
+ * Runtime formatting of the buffer.
+ * When at the root leve, end of scope is found, it means
+ * no more items placed into buffer.
+ *
+ * @arg buf : uint8_t* - pointer to the buffer
+ */
+void tausch_format_buf( uint8_t *buf )
+{
+    buf[0] = 0x07; // EOF marker END with tag > 0
+}
+
+/**
+ * Test if the pointer pointing at buf on in the buf is EOF
+ *
+ * @arg buf : uint8_t* - pointer to the buffer
+ */
+bool tausch_buf_is_eof( uint8_t *buf )
+{
+    return ( ((buf[0] & 3) == 0x03) && (buf[0] > 3) );
+}
+
+/**
+ * Run-time initiation of the iterator
+ *
+ * @arg buf : uint8_t* - pointer to the buffer
+ * @arg size : size_t - amount of data in the buffer
+ */
+void tausch_iter_init( tausch_iter_t *iter, uint8_t *buf, size_t size )
+{
+    tausch_iter_t tm = TAUSCH_ITER_INIT( buf, size );
+    *iter = tm;
+}
+
+/**
  * Return true if iterator is ok false if it is broken
  */
 bool tausch_iter_is_ok( tausch_iter_t *iter )
 {
-    bool notok = false;
+	bool notok = false;
     notok |= iter->ebuf == NULL; // there is no buffer pointed
     notok |= iter->idx == NULL; // idx is pointing to nothing
     notok |= iter->idx >= iter->ebuf; // index is out of buffer or end of buffer
@@ -199,9 +233,11 @@ bool tausch_decode_next( tausch_iter_t *iter )
         if( (tag & 3) == 3 )
         {
             // end of scope
-            if( iter->scope == 0 )
+            if( (iter->scope == 0) || (tag > 3) )
             {
-                iter->ebuf = NULL;
+                // at the root level we stay at the END marker
+                // when tag part of the END is not 0, then it is also end of file
+                tausch_iter_init( iter, iter->idx, iter->ebuf - iter->idx );
                 return false;
             }
             iter->scope -= 1;
@@ -260,7 +296,7 @@ bool tausch_write_next( tausch_iter_t *iter )
     iter->val = iter->idx;
     iter->vlen = 0;
     iter->tag = 0;
-    iter->lc = 0;
+    iter->lc= 0;
     // note: iter->scope stays as it is
     return true;
 }
@@ -276,7 +312,7 @@ bool tausch_decode_to_next( tausch_iter_t *iter )
     uint16_t scope = iter->scope;
     do
     {
-        tausch_decode_next( iter );
+        if( ! tausch_decode_next( iter ) ) return false;
         if( ! tausch_iter_is_ok( iter ) ) return false;
     }
     while( iter->scope > scope );
@@ -293,11 +329,13 @@ bool tausch_decode_to_next( tausch_iter_t *iter )
 bool tausch_decode_to_eoscope( tausch_iter_t *iter )
 {
     uint16_t scope = iter->scope;
-    if( scope == 0 ) return true;
     do
     {
-        tausch_decode_next( iter );
-        if( ! tausch_iter_is_ok( iter ) ) return false;
+        if( ! tausch_decode_next( iter ) )
+        {
+            if( ! tausch_iter_is_ok( iter ) ) return false;
+            else return true; // EOF
+        }
     }
     while( iter->scope >= scope );
     return true;
@@ -305,7 +343,7 @@ bool tausch_decode_to_eoscope( tausch_iter_t *iter )
 
 /**
  * Advance the iterator to the next stuffing in the scope or next element
- * after end of scope
+ * after end of scope or to the EOF
  *
  * @return true if the iteration was successful
  * @return false if the iteration failed, and iterator is unusable
@@ -315,9 +353,12 @@ bool tausch_decode_to_stuffing( tausch_iter_t *iter )
     uint16_t scope = iter->scope;
     do
     {
-        tausch_decode_next( iter );
-        if( ! tausch_iter_is_ok( iter ) ) return false;
-        if( (iter->tag == 0) && (iter->lc != 1) && (iter->scope == scope) )
+        if( ! tausch_decode_next( iter ) )
+        {
+            if( ! tausch_iter_is_ok( iter ) ) return false;
+            else return true; // EOF
+        }
+        if( (iter->tag == 0) && ( iter->lc != 1) && (iter->scope == scope) )
         {
             // stuffing has been found
             return true;
@@ -328,48 +369,89 @@ bool tausch_decode_to_stuffing( tausch_iter_t *iter )
 }
 
 /**
+ * Advance the iterator to the next tag in the scope or next element
+ * after end of scope
+ *
+ * @arg tag - the tag that is looked for
+ *
+ * @return true if the iteration was successful
+ * @return false if the iteration failed, and iterator is unusable
+ */
+bool tausch_decode_to_tag( tausch_iter_t *iter, size_t tag )
+{
+    uint16_t scope = iter->scope;
+    do
+    {
+        if( ! tausch_decode_next( iter ) )
+        {
+            if( ! tausch_iter_is_ok( iter ) ) return false;
+            else return false; // EOF the tag was not found
+        }
+        if( ! tausch_iter_is_ok( iter ) ) return false;
+        if( (iter->tag == tag) && (iter->lc != 3) && (iter->scope == scope) )
+        {
+            // stuffing has been found
+            return true;
+        }
+    }
+    while( iter->scope >= scope );
+    return false;
+}
+
+
+/**
  * Turn the element pointed by iterator into stuffing.
  * If the iterator is incomplete, then it creates.
  *
- * @arg len - the amount of bytes to write
+ * @arg len - the amount of bytes to write.
  *
- * @return true if the stuffing was successful
- * @return false if the stuffing was unsuccessful
+ * @return true if the stuffing was successful.
+ * @return false if the stuffing was unsuccessful.
  */
 bool tausch_write_stuffing( tausch_iter_t *iter, size_t len )
 {
     // FIXME: check if the usage of this method matches what it does, like what happens with idx
     if( ! tausch_iter_is_ok( iter ) ) return false;
     size_t totlen = iter->next - iter->idx;
-    if( iter->next == iter->val )
+    tausch_iter_t cpy = *iter; // copy the original iterator
+    bool is_eof = tausch_buf_is_eof( iter->idx );
+    if( ! tausch_iter_is_complete( iter ) )
     {
         // the iterator is incomplete
         totlen =len;
     }
-    if( totlen < 1 ) return true;
-    if( ((iter->idx + totlen) <= iter->idx) || ((iter->idx + totlen) > iter->ebuf) ) return true;
+    bool finalize( bool rv )
+    {
+        iter->tag = 0;
+        if( !rv ) *iter = cpy;
+        if( is_eof ) tausch_format_buf( iter->next );
+        return rv;
+    }
+    if( totlen < 1 ) return finalize( false );
+    if( ((iter->idx + totlen) <= iter->idx) || ((iter->idx + totlen) > iter->ebuf) ) return finalize( false );
     iter->next = iter->idx;
     iter->val = iter->next;
     size_t tlv = 0;
     if( totlen == 1 )
     {
-        if( ! tausch_encode_vluint( iter, tlv ) ) return false;
+        if( ! tausch_encode_vluint( iter, tlv ) ) return finalize( false );
         iter->val = NULL;
     }
     else
     {
         tlv = 2;
-        if( ! tausch_encode_vluint( iter, tlv ) ) return false;
+        if( ! tausch_encode_vluint( iter, tlv ) ) return finalize( false );
         tlv = totlen - (size_t)iter->next + (size_t)iter->idx;
         size_t lv  = tausch_vluint_len( tlv ) , xv = tlv;
+        // find the amount of exact data
         do { xv =tlv - lv; lv = tausch_vluint_len( xv ); } while( (xv+lv) != tlv );
-        if( ! tausch_encode_vluint( iter, xv ) ) return false;
+        if( ! tausch_encode_vluint( iter, xv ) ) return finalize( false );
         iter->val = iter->next;
         tlv = totlen - (size_t)iter->next + (size_t)iter->idx;
         memset( iter->next, 0, tlv );
     }
     iter->next = iter->idx + totlen;
-    return true;
+    return finalize( true );
 }
 
 
@@ -382,18 +464,26 @@ bool tausch_write_stuffing( tausch_iter_t *iter, size_t len )
  * @return false on failure
  * @return true on success
  */
-bool tausch_write_scope( tausch_iter_t *iter, size_t *tag )
+bool tausch_write_scope( tausch_iter_t *iter, size_t tag )
 {
-    if( ! tausch_iter_is_ok( iter ) ) return false;
-    if( tausch_iter_is_complete( iter ) ) return false; // scope can only be appended
-    if( iter->scope == ~(typeof(iter->scope))0 ) return false; // no more scopes can be added
-    size_t k = *tag;
+    if( !tausch_iter_is_ok( iter ) ) return false;
+    if( tausch_iter_is_complete( iter ) ) return false;   // scope can only be appended
+    if( iter->scope == ~(typeof(iter->scope))0 ) return false;   // no more scopes can be added
+    size_t k = tag;
     k <<= 2;
     k += 1;
-    if( ! tausch_encode_vluint( iter, k ) ) return false;
+    bool is_eof = tausch_buf_is_eof( iter->idx );
+    if( !tausch_encode_vluint( iter, k ) )
+    {
+        iter->next = iter->idx;
+        if( is_eof ) tausch_format_buf( iter->next );
+        return false;
+    }
+    if( is_eof ) tausch_format_buf( iter->next );
     iter->val = NULL;
     iter->lc = 1;
     iter->scope += 1;
+    iter->tag = tag;
     return true;
 }
 
@@ -407,14 +497,22 @@ bool tausch_write_scope( tausch_iter_t *iter, size_t *tag )
  */
 bool tausch_write_end( tausch_iter_t *iter )
 {
-    if( ! tausch_iter_is_ok( iter ) ) return false;
-    if( tausch_iter_is_complete( iter ) ) return false; // end of scope can only be appended
-    if( iter->scope <= 0 ) return false; // nothing to close
+    if( !tausch_iter_is_ok( iter ) ) return false;
+    if( tausch_iter_is_complete( iter ) ) return false;   // end of scope can only be appended
+    if( iter->scope <= 0 ) return false;   // nothing to close
     size_t k = 3;
-    if( ! tausch_encode_vluint( iter, k ) ) return false;
+    bool is_eof = tausch_buf_is_eof( iter->idx );
+    if( !tausch_encode_vluint( iter, k ) )
+    {
+        iter->next = iter->idx;
+        if( is_eof ) tausch_format_buf( iter->next );
+        return false;
+    }
+    if( is_eof ) tausch_format_buf( iter->next );
     iter->val = NULL;
     iter->lc = 3;
     iter->scope -= 1;
+    iter->tag = ~0;
     return true;
 }
 
@@ -427,21 +525,27 @@ bool tausch_write_end( tausch_iter_t *iter )
 bool tausch_read_bool( tausch_iter_t *iter, bool *value )
 {
     if( ! tausch_iter_is_ok( iter ) ) return false;
+    if( ! tausch_iter_is_complete( iter ) ) return false;
     if( value == NULL ) return false;
+    if( tausch_iter_is_stuffing( iter ) )
+    {
+        *value = false;
+        return true;
+    }
     if( iter->vlen == 0 )
     {
-        *value = 1;
+        *value = true;
         return true;
     }
     else for( int i=0; i < iter->vlen; i++ )
     {
         if( iter->val[i] != 0 )
         {
-            *value = 1;
+            *value = true;
             return true;
         }
     }
-    *value = 0;
+    *value = false;
     return true;
 }
 
@@ -462,6 +566,15 @@ bool tausch_write_bool( tausch_iter_t *iter, size_t tag, bool *value )
     if( ! tausch_iter_is_ok( iter ) ) return false;
     bool val = true;
     if( value != NULL ) val = *value;
+    bool is_eof = tausch_buf_is_eof( iter->idx );
+    tausch_iter_t cpy = *iter;
+    bool finalize( bool rv )
+    {
+        if( !rv ) *iter = cpy;
+        if( is_eof && (iter->next < iter->ebuf) ) tausch_format_buf( iter->next );
+        return rv;
+    }
+
     if( ! tausch_iter_is_complete( iter ) )
     {
         // Note if you want to append it in non space saving way, then
@@ -470,15 +583,16 @@ bool tausch_write_bool( tausch_iter_t *iter, size_t tag, bool *value )
         {
             // Append the element in a space saving way.
             size_t tlv = tag << 2;
-            if( ! tausch_encode_vluint( iter, tlv ) ) return false;
+            if( ! tausch_encode_vluint( iter, tlv ) ) return finalize( false );
             iter->val = NULL;
         }
         else
         {
             // Write the item as uint8_t
-            if( ! tausch_write_typX( iter, tag, (uint8_t*)&val, sizeof(uint8_t))) return false;
+            if( ! tausch_write_typX( iter, tag, (uint8_t*)&val, sizeof(uint8_t))) return finalize( false );
         }
-        return true;
+        iter->tag = tag;
+        return finalize( true );
     }
     else
     {
@@ -488,10 +602,10 @@ bool tausch_write_bool( tausch_iter_t *iter, size_t tag, bool *value )
         tm.next = tm.idx;
         tm.val = tm.next;
         tm.ebuf = iter->next;
-        size_t bytes = tausch_vluint_len( tag );
+        size_t bytes = tausch_vluint_len( tag << 2 );
         if( totlen < bytes )
         {
-            return false; // can not encode, not enough space in it
+            return finalize( false ); // can not encode, not enough space in it
         }
         else if( totlen <= (bytes+1) )
         {
@@ -499,37 +613,40 @@ bool tausch_write_bool( tausch_iter_t *iter, size_t tag, bool *value )
            if( val == true )
            {
                size_t tlv = tag << 2;
-               if( ! tausch_encode_vluint( &tm, tlv ) ) return false;
-               // expected that only 1 byte will be written, appending more 0-s is ok
-               while(tm.next < tm.ebuf)
+               if( ! tausch_encode_vluint( &tm, tlv+2 ) ) return finalize( false );
+               // append the single byte, length 0
+               if( totlen > bytes )
                {
                    *(tm.next++) = 0x00;
                }
+               iter->tag = tag;
            }
            else // val == false
            {
-               if( ! tausch_write_stuffing( &tm, totlen ) ) return false;
+               if( ! tausch_write_stuffing( &tm, totlen ) ) return finalize( false );
+               iter->tag = 0;
            }
-           return true;
+           return finalize( true );
         }
         else
         {
             // full TLV has to be written
             size_t tlv = tag << 2;
             tlv += 2;   // encode the len too
-            if( ! tausch_encode_vluint( &tm, tlv ) ) return false;
+            if( ! tausch_encode_vluint( &tm, tlv ) ) return finalize( false );
             tlv = totlen - bytes - 1;   // now: tlv is length
-            if( ! tausch_encode_vluint( &tm, tlv ) ) return false;
+            if( ! tausch_encode_vluint( &tm, tlv ) ) return finalize( false );
             while( tm.next < tm.ebuf )
             {
                 *(tm.next++) = val;
                 val = 0;
             }
-            return true;
+            iter->tag = tag;
+            return finalize( true );
         }
     }
 
-    return true;
+    //return finalize( true );
 }
 
 
@@ -569,28 +686,36 @@ size_t tausch_read_typX( tausch_iter_t *iter, uint8_t *value, size_t len )
 size_t tausch_write_typX( tausch_iter_t *iter, size_t tag, uint8_t *value, size_t len )
 {
     if( ! tausch_iter_is_ok( iter ) ) return 0;
+    bool is_eof = tausch_buf_is_eof( iter->idx );
+    tausch_iter_t cpy = *iter;
+    size_t finalize( size_t rv )
+    {
+        if( !rv ) *iter = cpy;
+        if( is_eof && (iter->next < iter->ebuf) ) tausch_format_buf( iter->next );
+        return rv;
+    }
     if( tausch_iter_is_complete( iter ) )
     {
         // we are overwriting the meomry
-        if( iter->tag != tag ) return 0;
+        if( iter->tag != tag ) return finalize( 0 );
         if( value != NULL )
         {
             // simple overwrite of the value
-            if( iter->vlen != len ) return 0; // the length must match
+            if( iter->vlen != len ) return finalize( 0 ); // the length must match
             memcpy( iter->val, value, len );
             return len;
         }
         else if( len > 0 )
         {
             // we are zeroing the  value field
-            if( iter->vlen != len ) return 0; // lengths must match in this case
+            if( iter->vlen != len ) return finalize( 0 ); // lengths must match in this case
             memset( iter->val, 0x00, len );
             return len;
         }
         else
         {
             // we are turning the item to null in place
-            if( iter->vlen == 0 ) return 1; // it is already null
+            if( iter->vlen == 0 ) return finalize( 1 ); // it is already null
             tag <<= 2;
             // start new iterator for overwriting
             tausch_iter_t tm = *iter;
@@ -599,7 +724,7 @@ size_t tausch_write_typX( tausch_iter_t *iter, size_t tag, uint8_t *value, size_
             tm.ebuf = iter->next;
             tm.lc = 0;
             tm.vlen = 0;
-            if( ! tausch_encode_vluint( &tm, tag ) ) return 0;
+            if( ! tausch_encode_vluint( &tm, tag ) ) return finalize( 0 );
             iter->next = tm.next;
             iter->val = NULL;
             iter->vlen = 0;
@@ -607,13 +732,13 @@ size_t tausch_write_typX( tausch_iter_t *iter, size_t tag, uint8_t *value, size_
             // fill the remainder with stuffing
             size_t stlen = tm.ebuf - tm.next;
             tm.idx = tm.next;
-            if( ! tausch_write_stuffing( &tm, stlen ) ) return 0;
-            return 1;
+            if( ! tausch_write_stuffing( &tm, stlen ) ) return finalize( 0 );
+            return finalize( 1 );
         }
     }
     else if ( ! tausch_iter_is_clean( iter ) )
     {
-        return 0; // if the iter is not clean we can not write
+        return finalize( 0 ); // if the iter is not clean we can not write
     }
     else
     {
@@ -623,7 +748,7 @@ size_t tausch_write_typX( tausch_iter_t *iter, size_t tag, uint8_t *value, size_
         if( len > 0 ) tag += 2;
         iter->lc = tag & 3;
         // write the tag
-        if( ! tausch_encode_vluint(iter, tag) ) return 0;
+        if( ! tausch_encode_vluint(iter, tag) ) return finalize( 0 );
         if( len == 0 )
         {
             // null value was requested
@@ -632,9 +757,9 @@ size_t tausch_write_typX( tausch_iter_t *iter, size_t tag, uint8_t *value, size_
             return 1;
         }
         // write the len
-        if( ! tausch_encode_vluint(iter, len) ) return 0;
+        if( ! tausch_encode_vluint(iter, len) ) return finalize( 0 );
         // write the value
-        if( ((iter->next + len) <= iter->next) || ((iter->next + len) > iter->ebuf) ) return 0; // overflow
+        if( ((iter->next + len) <= iter->next) || ((iter->next + len) > iter->ebuf) ) return finalize( 0 ); // overflow
         if( value != NULL )
         {
             memcpy( iter->next, value, len );
@@ -645,7 +770,7 @@ size_t tausch_write_typX( tausch_iter_t *iter, size_t tag, uint8_t *value, size_
         }
         iter->next += len;
         iter->vlen = len;
-        return len;
+        return finalize( len );
     }
 }
 
@@ -725,7 +850,10 @@ size_t tausch_write_utf8( tausch_iter_t *iter, size_t tag, char *value )
 size_t tausch_iter_vlen( tausch_iter_t *iter )
 {
     if( ! tausch_iter_is_ok( iter ) ) return 0;
-    return iter->vlen;
+    if( iter->val == NULL ) return 0;
+    if( tausch_iter_is_complete( iter ) )
+        return iter->vlen;
+    return 0;
 }
 
 

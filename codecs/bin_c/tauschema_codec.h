@@ -37,6 +37,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+
 /**
  * Enumeration of the TLV primitives
  */
@@ -78,22 +79,44 @@ typedef struct
 	uint16_t	next; // table index to next item on same scope
 }tausch_flatrow_t;
 
+/**
+ * Runtime formatting of the buffer.
+ * When at the root leve, end of scope is found, it means
+ * no more items placed into buffer.
+ *
+ * @arg buf : uint8_t* - pointer to the buffer
+ */
+void tausch_format_buf( uint8_t *buf );
+
+/**
+ * Test if the pointer pointing at buf on in the buf is EOF
+ *
+ * @arg buf : uint8_t* - pointer to the buffer
+ */
+bool tausch_buf_is_eof( uint8_t *buf );
 
 typedef struct
 {
-	uint8_t		*ebuf; 	// Pointer to the buffer end
-						// if ebuf == NULL, then the iter is invalid
-	uint8_t 	*idx; 	// pointer to start of current iterator
-	uint8_t		*next; 	// pointer to index position of next item
-	uint8_t		*val; 	// Pointer to the value field or NULL
-						// if val == next, then the iter is incomplete
-						// if val == NULL, then the value is null
-	size_t		tag; 	// tag value of the item
-	size_t		vlen; 	// length of the value part
-	uint16_t    scope; 	// the scope depth of the structure
-	uint8_t		lc;  	// the l and c bits of the tag
+	uint8_t		*ebuf; 	// Pointer to the buffer end,
+						//   if ebuf == NULL, then the iter is invalid.
+	uint8_t 	*idx; 	// Pointer to start of current iterator.
+	uint8_t		*next; 	// Pointer to index position of next item.
+	uint8_t		*val; 	// Pointer to the value field or NULL,
+						//   if val == next, then the iter is incomplete,
+						//   if val == NULL, then the value is null.
+	size_t		tag; 	// Tag value of the item.
+	size_t		vlen; 	// Length of the value part.
+	uint16_t    scope; 	// The scope depth of the structure.
+	uint8_t		lc;  	// The l and c bits of the tag, if lc == 4 then
+	                    //   the iterator points to end of buffer.
 }tausch_iter_t;
 
+/**
+ * Compile-time initiation of the iterator
+ *
+ * @arg buf : uint8_t* - pointer to the buffer
+ * @arg size : size_t - amount of data in the buffer
+ */
 #define TAUSCH_ITER_INIT( buf, size ) \
 {\
 	.ebuf = (uint8_t*)(buf) + (size), \
@@ -105,6 +128,15 @@ typedef struct
 	.scope = 0, \
 	.lc = 0 \
 }
+
+/**
+ * Run-time initiation of the iterator
+ *
+ * @arg buf : uint8_t* - pointer to the buffer
+ * @arg size : size_t - amount of data in the buffer
+ */
+void tausch_iter_init( tausch_iter_t *iter, uint8_t *buf, size_t size );
+
 
 typedef struct
 {
@@ -123,11 +155,11 @@ typedef struct
  * @return number of bytes read out
  */
 #define tausch_read( iter, value ) _Generic((value), \
-    bool*:          tausch_read_bool( (iter), (value) ), \
+	bool*:          tausch_read_bool( (iter), (bool*)(value) ), \
     char*:          restricted__use_blob_instead(), \
-    tausch_blob_t*: tausch_read_blob( (iter), (value) ), \
+    tausch_blob_t*: tausch_read_blob( (iter), (tausch_blob_t*)(value) ), \
     void*:          tausch_iter_vlen( (iter) ), \
-    default:        tausch_read_typX( (iter), (uint8_t*)(value), sizeof((value)[0]) ), \
+    default:        tausch_read_typX( (iter), (uint8_t*)(value), sizeof((value)[0]) ) \
 )
 
 /**
@@ -141,7 +173,7 @@ typedef struct
  * @return number of value bytes written
  */
 #define tausch_write( iter, tag, value ) _Generic((value), \
-    bool*:          tausch_write_bool( (iter), (size_t)(tag), (bool*)(value) ), \
+	bool*:          tausch_write_bool( (iter), (size_t)(tag), (bool*)(value) ), \
     char*:          tausch_write_utf8( (iter), (size_t)(tag), (char*)(value) ), \
 	tausch_blob_t*: tausch_write_blob( (iter), (size_t)(tag), (tausch_blob_t*)(value) ), \
 	void*:          tausch_write_typX( (iter), (size_t)(tag), (uint8_t*)NULL, 0 ), \
@@ -251,6 +283,17 @@ bool tausch_decode_to_eoscope( tausch_iter_t *iter );
 bool tausch_decode_to_stuffing( tausch_iter_t *iter );
 
 /**
+ * Advance the iterator to the next tag in the scope or next element
+ * after end of scope
+ *
+ * @arg tag - the tag that is looked for
+ *
+ * @return true if the iteration was successful
+ * @return false if the iteration failed, and iterator is unusable
+ */
+bool tausch_decode_to_tag( tausch_iter_t *iter, size_t tag );
+
+/**
  * Turn the element pointed by iterator into stuffing.
  * If the iterator is incomplete, then it creates.
  *
@@ -270,7 +313,7 @@ bool tausch_write_stuffing( tausch_iter_t *iter, size_t len );
  * @return false on failure
  * @return true on success
  */
-bool tausch_write_scope( tausch_iter_t *iter, size_t *tag );
+bool tausch_write_scope( tausch_iter_t *iter, size_t tag );
 
 /**
  * Close lastly open scope
@@ -372,5 +415,9 @@ size_t tausch_write_utf8( tausch_iter_t *iter, size_t tag, char *value );
  */
 size_t tausch_iter_vlen( tausch_iter_t *iter );
 
+/**
+ * Function that shall never be implemented => linking must fail
+ */
+void restricted__use_blob_instead( void );
 
 #endif //__TAUSCHEMA_CODEC_C__

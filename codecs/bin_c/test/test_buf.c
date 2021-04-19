@@ -8,6 +8,8 @@ bool test_buf( void )
 {
     tausch_iter_t iterini = TAUSCH_ITER_INIT( testbuf_1, sizeof(testbuf_1) );
 
+    tausch_format_buf( testbuf_1 );
+
     {
         tausch_iter_t iter = iterini;
 
@@ -49,28 +51,71 @@ bool test_buf( void )
         printf(" --- Testing the is_null method \n");
         test( tausch_iter_is_null( &iter ), "is_null must return true when something is nullified ");
 
-        printf(" --- Testing that root scope is always end of scope. \n");
-        test( tausch_decode_to_eoscope(&iter),"root scope must always result in end of scope.");
-
         printf(" --- testing of advancing the iterator to next, this time newly created stuffing. \n" );
         test( tausch_decode_next( &iter ), "decode_next failed" );
         uint8_t expect_3[] = { 0x02, 0x03, 0x00, 0x00, 0x00 };
         BINCOMP( testbuf_1 +6+3, expect_3, "written binary is not right" );
         test( 5 == tausch_iter_is_stuffing( &iter ), "tausch_iter_is_stuffing: the amount of stuffing is wrong.");
+
+    }
+
+    {
+        tausch_iter_t iter = iterini;
+
+        printf(" --- Testing of advancing into EOF. \n");
+        test( tausch_decode_to_eoscope(&iter),"tausch_decode_to_eoscope must return true on EOF.");
     }
 
 
     {
-        printf(" --- Testing start over and decode to stuffing \n");
-        tausch_iter_t iter = iterini;
+        tausch_iter_t iter;
+        iter.ebuf = NULL;
 
+        printf(" --- Testing start over and runtime initiating the iter \n");
+        tausch_iter_init( &iter, testbuf_1, sizeof(testbuf_1) );
+        test( tausch_iter_is_ok(&iter), "Initiation of iter went wrong");
+
+        printf(" --- Decode to stuffing \n");
         test( tausch_decode_to_stuffing(&iter), "stuffing was not found but it is there");
         uint8_t expect_3[] = { 0x02, 0x03, 0x00, 0x00, 0x00 };
         BINCOMP( testbuf_1 +6+3, expect_3, "it is not the stuffing we must have been found." );
         test( 5 == tausch_iter_is_stuffing( &iter ), "tausch_iter_is_stuffing: the amount of stuffing is wrong.");
 
+        printf(" --- Testing of decoding to end of buffer \n" );
+        test( ! tausch_decode_to_tag(&iter, 333), "the tag 333 was found but we shall not have it. ");
+
     }
 
+    {
+        tausch_iter_t iter = iterini;
+
+        printf(" --- Testing writing of the boolean. \n");
+        test( tausch_decode_to_eoscope(&iter),"tausch_decode_to_eoscope must return true on EOF.");
+        bool val = false;
+        test( tausch_write( &iter, 22, (bool*)NULL ), "writing bool failed" );
+        test( (iter.next - iter.idx) == 1, "must have been writing only one byte" );
+        test( tausch_buf_is_eof( iter.next ), "EOF must have been pushed.");
+        test( tausch_read( &iter, &val ), "reading bool failed" );
+        test( val == true, "the readout is not true" );
+        test( tausch_write( &iter, 22, &val ), "writing true over true must have been passing in tag only mode" );
+        val = false;
+        test( tausch_write( &iter, 22, &val ), "writing false over true must have been passing in tag only mode" );
+        test( tausch_read( &iter, &val ), "reading stuffing as bool must have been passing" );
+        test( val == false, "the readout is not false" );
+
+
+    }
+
+    {
+        tausch_iter_t iter = iterini;
+        iterini = iter; // to avoid compiler warning
+
+#if 0 // Testing of linking failure
+        char mem[10];
+        tausch_read( &iter, mem );
+#endif
+
+    }
 
     return true;
 }
