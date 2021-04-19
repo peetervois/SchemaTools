@@ -26,10 +26,11 @@ var NAVTREE =
 [
   [ "TauSchema Binary TLV Codec", "index.html", [
     [ "TauSchema Codec C", "index.html", [
-      [ "Binary Format", "index.html#autotoc_md1", null ],
-      [ "Collections, values", "index.html#autotoc_md2", null ],
-      [ "Schema and Device info TLV", "index.html#autotoc_md3", null ],
-      [ "LICENSE", "index.html#autotoc_md4", null ]
+      [ "Usage", "index.html#autotoc_md1", null ],
+      [ "Binary Format", "index.html#autotoc_md2", null ],
+      [ "Collections, values", "index.html#autotoc_md3", null ],
+      [ "Schema and Device info TLV", "index.html#autotoc_md4", null ],
+      [ "LICENSE", "index.html#autotoc_md5", null ]
     ] ],
     [ "Unit Tests of binary codec", "md__home_peeter__projektid__schema_tools_codecs_bin_c_test__r_e_a_d_m_e.html", null ],
     [ "Data Structures", "annotated.html", [

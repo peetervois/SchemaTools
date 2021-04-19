@@ -85,8 +85,112 @@ $(document).ready(function(){initNavTree('index.html',''); initResizable(); });
 <div class="title">TauSchema Codec C </div>  </div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="md__home_peeter_Projektid_SchemaTools_codecs_bin_c_README"></a> TauSchema codec for C language does parse, modify and compose TLV binary message.</p>
+<div class="textblock"><p><a class="anchor" id="md__home_peeter_Projektid_SchemaTools_codecs_bin_c_README"></a> TauSchema codec for C language does parse, modify and compose TLV binary message. The message is as flexible as JSON.</p>
 <h1><a class="anchor" id="autotoc_md1"></a>
+Usage</h1>
+<p>The low level interface does use Iterators to navigate through the binary. It is possible to overwrite values, append values to the end of message, clear the TLV elements by overwriting them with "Stuffing" (a special TLV whose tag id is 0).</p>
+<div class="fragment"><div class="line"><span class="preprocessor">#include &quot;<a class="code" href="tauschema__codec_8h.html">tauschema_codec.h</a>&quot;</span></div>
+<div class="line"> </div>
+<div class="line">uint8_t messagebuf[100];</div>
+<div class="line"> </div>
+<div class="line"><span class="keywordtype">void</span> handle( uint8_t *buf, <span class="keywordtype">size_t</span> len )</div>
+<div class="line">{</div>
+<div class="line">    <a class="code" href="structtausch__iter__t.html">tausch_iter_t</a> iter, iter_init;</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Initialize the iterator</span></div>
+<div class="line">    </div>
+<div class="line">    <a class="code" href="tauschema__codec_8c.html#a238a399989590eff36214d4f6cce864a">tausch_iter_init</a>( &amp;iter, buf, len );   <span class="comment">// initialize the iterator</span></div>
+<div class="line">    iter_init = iter;                      <span class="comment">// store the value for easy reinitialization</span></div>
+<div class="line">    </div>
+<div class="line">    <span class="comment">// Decode the iterator to the element that we</span></div>
+<div class="line">    <span class="comment">// are interested of. Search for the root level tag.</span></div>
+<div class="line">    </div>
+<div class="line">    <span class="keywordflow">if</span>( ! <a class="code" href="tauschema__codec_8c.html#a32a53ff60cfda170135ef2a171acb12c">tausch_decode_to_tag</a>( &amp;iter, MY_TAG ) )</div>
+<div class="line">    {</div>
+<div class="line">        <span class="comment">// The tag does not exist</span></div>
+<div class="line">        <span class="keywordflow">return</span>;</div>
+<div class="line">    }</div>
+<div class="line">    </div>
+<div class="line">    <span class="comment">// If MY_TAG is collection, then iterator entered</span></div>
+<div class="line">    <span class="comment">// directly into beginning of the subscope of the MY_TAG.</span></div>
+<div class="line">    <span class="comment">// Now decode the iterator to the MY_TAG.MY_SUBTAG</span></div>
+<div class="line">    </div>
+<div class="line">    <span class="keywordflow">if</span>( ! <a class="code" href="tauschema__codec_8c.html#a32a53ff60cfda170135ef2a171acb12c">tausch_decode_to_tag</a>( &amp;iter, MY_SUBTAG ) )</div>
+<div class="line">    {</div>
+<div class="line">        <span class="comment">// The tag does not exist</span></div>
+<div class="line">        <span class="keywordflow">return</span>;</div>
+<div class="line">    }</div>
+<div class="line">    </div>
+<div class="line">    <span class="keywordflow">if</span>( <a class="code" href="tauschema__codec_8c.html#afdac688568c035b12df0eacb048c41a1">tausch_iter_is_null</a>( &amp;iter ) )</div>
+<div class="line">    {</div>
+<div class="line">        <span class="comment">// The item is provided but does not contain any data</span></div>
+<div class="line">        <span class="keywordflow">return</span>;</div>
+<div class="line">    }</div>
+<div class="line">    </div>
+<div class="line">    int32_t getval = 0;</div>
+<div class="line">    <span class="keywordflow">if</span>( ! <a class="code" href="tauschema__codec_8h.html#a5fb2f08f1ea78d64e8a7922eda6b8dfa">tausch_read</a>( &amp;iter, &amp;getval ) )</div>
+<div class="line">    {</div>
+<div class="line">        <span class="comment">// the reading of the value failed</span></div>
+<div class="line">        <span class="keywordflow">return</span>;</div>
+<div class="line">    }</div>
+<div class="line">    </div>
+<div class="line">    <span class="comment">// If you want to overwrite the value in the message</span></div>
+<div class="line">    </div>
+<div class="line">    int32_t value = 43;</div>
+<div class="line">    <span class="keywordflow">if</span>( ! <a class="code" href="tauschema__codec_8h.html#a91a2127fe6c3a674c97cbdecf21d1128">tausch_write</a>( &amp;iter, MY_SUBTAG, &amp;value ) )</div>
+<div class="line">    {</div>
+<div class="line">        <span class="comment">// overwriting failed</span></div>
+<div class="line">        <span class="keywordflow">return</span>;</div>
+<div class="line">    }</div>
+<div class="line">    </div>
+<div class="line">    <span class="comment">// To exit from the subscope</span></div>
+<div class="line">    </div>
+<div class="line">    <span class="keywordflow">if</span>( ! <a class="code" href="tauschema__codec_8c.html#aa213c54805c505580db74177716c3012">tausch_decode_to_end</a>( &amp;iter ) )</div>
+<div class="line">    {</div>
+<div class="line">        <span class="comment">// Failed to find the end of the scope</span></div>
+<div class="line">        <span class="keywordflow">return</span>;</div>
+<div class="line">    }</div>
+<div class="line">    </div>
+<div class="line">    <span class="comment">// To restart looking for another tag</span></div>
+<div class="line">    </div>
+<div class="line">    iter = iter_init;   <span class="comment">// the easy initialization</span></div>
+<div class="line">    </div>
+<div class="line">    <span class="keywordflow">if</span>( ! <a class="code" href="tauschema__codec_8c.html#a32a53ff60cfda170135ef2a171acb12c">tausch_decode_to_tag</a>( &amp;iter, MY_ANOTHER_TAG ) )</div>
+<div class="line">    {</div>
+<div class="line">        <span class="comment">// The tag does not exist</span></div>
+<div class="line">        <span class="keywordflow">return</span>;</div>
+<div class="line">    }</div>
+<div class="line">}</div>
+</div><!-- fragment --><p>The same above in much dense coding style:</p>
+<div class="fragment"><div class="line"><span class="keywordtype">void</span> handle( uint8_t *buf, <span class="keywordtype">size_t</span> len )</div>
+<div class="line">{</div>
+<div class="line">    <a class="code" href="structtausch__iter__t.html">tausch_iter_t</a> iter, iter_init;</div>
+<div class="line">    <span class="keywordtype">bool</span> error = <span class="keyword">false</span>;</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Initialize the iterator</span></div>
+<div class="line">    </div>
+<div class="line">    error ||= <a class="code" href="tauschema__codec_8c.html#a238a399989590eff36214d4f6cce864a">tausch_iter_init</a>( &amp;iter, buf, len );   <span class="comment">// initialize the iterator</span></div>
+<div class="line">    iter_init = iter;                      <span class="comment">// store the value for easy reinitialization</span></div>
+<div class="line">    </div>
+<div class="line">    error ||= ! <a class="code" href="tauschema__codec_8c.html#a32a53ff60cfda170135ef2a171acb12c">tausch_decode_to_tag</a>( &amp;iter, MY_TAG ) );</div>
+<div class="line">    error ||= ! <a class="code" href="tauschema__codec_8c.html#a32a53ff60cfda170135ef2a171acb12c">tausch_decode_to_tag</a>( &amp;iter, MY_SUBTAG ) );</div>
+<div class="line">    error ||= ! <a class="code" href="tauschema__codec_8c.html#afdac688568c035b12df0eacb048c41a1">tausch_iter_is_null</a>( &amp;iter ) );</div>
+<div class="line">    int32_t getval = 0;</div>
+<div class="line">    error ||= ! <a class="code" href="tauschema__codec_8h.html#a5fb2f08f1ea78d64e8a7922eda6b8dfa">tausch_read</a>( &amp;iter, &amp;getval ) );</div>
+<div class="line">    int32_t value = 43;</div>
+<div class="line">    error ||= ! <a class="code" href="tauschema__codec_8h.html#a91a2127fe6c3a674c97cbdecf21d1128">tausch_write</a>( &amp;iter, MY_SUBTAG, &amp;value ) );</div>
+<div class="line">    error ||= ! <a class="code" href="tauschema__codec_8c.html#aa213c54805c505580db74177716c3012">tausch_decode_to_end</a>( &amp;iter ) );</div>
+<div class="line">    </div>
+<div class="line">    iter = iter_init;   <span class="comment">// the easy initialization</span></div>
+<div class="line">    </div>
+<div class="line">    error ||= ! <a class="code" href="tauschema__codec_8c.html#a32a53ff60cfda170135ef2a171acb12c">tausch_decode_to_tag</a>( &amp;iter, MY_ANOTHER_TAG ) );</div>
+<div class="line">    </div>
+<div class="line">    <span class="keywordflow">if</span>( ! error )</div>
+<div class="line">    {</div>
+<div class="line">        <span class="comment">// do the response part...</span></div>
+<div class="line">    }</div>
+<div class="line">}</div>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md2"></a>
 Binary Format</h1>
 <p>The binary message format is as follows:</p>
 <div class="fragment"><div class="line">MESSAGE := TLV [,TLV [, ... ] ]</div>
@@ -100,7 +204,7 @@ Binary Format</h1>
 <div class="line">TXLC := {TAG[31:2],L[1],C[1]}</div>
 <div class="line">VLUINT( X ) := {N[7]=(X&gt;2^7-1),X[6:0]}[, {N[7]=(X&gt;2^(2*7)-1,X[13:7]}[, ..] ]</div>
 </div><!-- fragment --><p>Message contains sequence of TLV elements. Each TLV element must contain Tag value TXLC, where X is the tag of object, L flag defines if the VLULENGTH item follows. When the LENGTH is nonzero, then the value bytes follow as much as the length specifies. The flag C indicates wether the tag is collection.</p>
-<h1><a class="anchor" id="autotoc_md2"></a>
+<h1><a class="anchor" id="autotoc_md3"></a>
 Collections, values</h1>
 <table class="markdownTable">
 <tr class="markdownTableHead">
@@ -122,7 +226,7 @@ Collections, values</h1>
 <tr class="markdownTableRowEven">
 <td class="markdownTableBodyNone">X  </td><td class="markdownTableBodyNone">1  </td><td class="markdownTableBodyNone">1  </td><td class="markdownTableBodyNone">TX11  </td><td class="markdownTableBodyNone">End of Message / End of File (EOF)   </td></tr>
 </table>
-<h1><a class="anchor" id="autotoc_md3"></a>
+<h1><a class="anchor" id="autotoc_md4"></a>
 Schema and Device info TLV</h1>
 <p>To use the binary messages, Schema needs to be known for all parties. The schema may be transferred and information about the device can be transferred with the special Schema interface. The device info messaging collection is opened with tag T001 (0x01) and closed with tag T011 (0x03)</p>
 <div class="fragment"><div class="line">#</div>
@@ -199,7 +303,7 @@ Schema and Device info TLV</h1>
 <div class="line">  # less data than field has, then remainder is turned into</div>
 <div class="line">  # stuffing with T0?0.</div>
 <div class="line">  #</div>
-</div><!-- fragment --><h1><a class="anchor" id="autotoc_md4"></a>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md5"></a>
 LICENSE</h1>
 <p>Copyright (C) 2020 by Tauria Ltd <a href="#" onclick="location.href='mai'+'lto:'+'tau'+'ri'+'a@t'+'au'+'ria'+'.e'+'e'; return false;">tauri<span style="display: none;">.nosp@m.</span>a@ta<span style="display: none;">.nosp@m.</span>uria.<span style="display: none;">.nosp@m.</span>ee</a></p>
 <p>Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted.</p>
@@ -207,6 +311,14 @@ LICENSE</h1>
 </div></div><!-- PageDoc -->
 </div><!-- contents -->
 </div><!-- doc-content -->
+<div class="ttc" id="atauschema__codec_8h_html_a91a2127fe6c3a674c97cbdecf21d1128"><div class="ttname"><a href="tauschema__codec_8h.html#a91a2127fe6c3a674c97cbdecf21d1128">tausch_write</a></div><div class="ttdeci">#define tausch_write(iter, tag, value)</div><div class="ttdef"><b>Definition:</b> <a href="tauschema__codec_8h_source.html#l00206">tauschema_codec.h:206</a></div></div>
+<div class="ttc" id="atauschema__codec_8h_html"><div class="ttname"><a href="tauschema__codec_8h.html">tauschema_codec.h</a></div></div>
+<div class="ttc" id="atauschema__codec_8h_html_a5fb2f08f1ea78d64e8a7922eda6b8dfa"><div class="ttname"><a href="tauschema__codec_8h.html#a5fb2f08f1ea78d64e8a7922eda6b8dfa">tausch_read</a></div><div class="ttdeci">#define tausch_read(iter, value)</div><div class="ttdef"><b>Definition:</b> <a href="tauschema__codec_8h_source.html#l00188">tauschema_codec.h:188</a></div></div>
+<div class="ttc" id="atauschema__codec_8c_html_afdac688568c035b12df0eacb048c41a1"><div class="ttname"><a href="tauschema__codec_8c.html#afdac688568c035b12df0eacb048c41a1">tausch_iter_is_null</a></div><div class="ttdeci">bool tausch_iter_is_null(tausch_iter_t *iter)</div><div class="ttdef"><b>Definition:</b> <a href="tauschema__codec_8c_source.html#l00098">tauschema_codec.c:98</a></div></div>
+<div class="ttc" id="atauschema__codec_8c_html_aa213c54805c505580db74177716c3012"><div class="ttname"><a href="tauschema__codec_8c.html#aa213c54805c505580db74177716c3012">tausch_decode_to_end</a></div><div class="ttdeci">bool tausch_decode_to_end(tausch_iter_t *iter)</div><div class="ttdef"><b>Definition:</b> <a href="tauschema__codec_8c_source.html#l00330">tauschema_codec.c:330</a></div></div>
+<div class="ttc" id="astructtausch__iter__t_html"><div class="ttname"><a href="structtausch__iter__t.html">tausch_iter_t</a></div><div class="ttdef"><b>Definition:</b> <a href="tauschema__codec_8h_source.html#l00108">tauschema_codec.h:109</a></div></div>
+<div class="ttc" id="atauschema__codec_8c_html_a238a399989590eff36214d4f6cce864a"><div class="ttname"><a href="tauschema__codec_8c.html#a238a399989590eff36214d4f6cce864a">tausch_iter_init</a></div><div class="ttdeci">void tausch_iter_init(tausch_iter_t *iter, uint8_t *buf, size_t size)</div><div class="ttdef"><b>Definition:</b> <a href="tauschema__codec_8c_source.html#l00065">tauschema_codec.c:65</a></div></div>
+<div class="ttc" id="atauschema__codec_8c_html_a32a53ff60cfda170135ef2a171acb12c"><div class="ttname"><a href="tauschema__codec_8c.html#a32a53ff60cfda170135ef2a171acb12c">tausch_decode_to_tag</a></div><div class="ttdeci">bool tausch_decode_to_tag(tausch_iter_t *iter, size_t tag)</div><div class="ttdef"><b>Definition:</b> <a href="tauschema__codec_8c_source.html#l00381">tauschema_codec.c:381</a></div></div>
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>

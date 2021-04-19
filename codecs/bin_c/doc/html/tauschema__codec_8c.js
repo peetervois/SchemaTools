@@ -2,7 +2,7 @@ var tauschema__codec_8c =
 [
     [ "tausch_buf_is_eof", "tauschema__codec_8c.html#abae2b1721aa408cbaeede9cde2fa81ba", null ],
     [ "tausch_decode_next", "tauschema__codec_8c.html#a2ec4249518cdb30cb891a32c7ba76650", null ],
-    [ "tausch_decode_to_eoscope", "tauschema__codec_8c.html#a30ce784f5f62aca48af375c674ee341e", null ],
+    [ "tausch_decode_to_end", "tauschema__codec_8c.html#aa213c54805c505580db74177716c3012", null ],
     [ "tausch_decode_to_next", "tauschema__codec_8c.html#a1130a0fe6e084c3b708434c424437a8d", null ],
     [ "tausch_decode_to_stuffing", "tauschema__codec_8c.html#a909559f4d78eed502a03d08e375bad11", null ],
     [ "tausch_decode_to_tag", "tauschema__codec_8c.html#a32a53ff60cfda170135ef2a171acb12c", null ],
