@@ -232,7 +232,7 @@ bool test_buf( void )
         printf(" --- Testing writing of typX null. \n");
         test( tausch_decode_to_end(&iter),"tausch_decode_to_eoscope must return true on EOF.");
         test( tausch_write( &iter, 32, NULL), "writing null failed" );
-        test( (iter.next - iter.idx) == 2, "must have been writing 5 bytes" );
+        test( (iter.next - iter.idx) == 2, "must have been writing 2 bytes" );
         test( tausch_iter_is_null( &iter), "iter must be as null" );
         test( tausch_iter_vlen(&iter) == 0, "iter value len must be 0" );
         test( ! tausch_decode_next( &iter), "iterating to EOC must fail" );

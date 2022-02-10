@@ -1,0 +1,16 @@
+{
+	"authors" : [{
+			"name" : "Peeter Vois",
+			"email" : "peeter@tauria.ee",
+			"homepage" : "http://www.tauria.ee"
+		}
+	],
+	"minimum-stability" : "alpha",
+	"name" : "tauria/schema_tools",
+	"description" : "Schema language, parser, compilator and support for different languages.",
+	"autoload" : {
+		"psr-4" : {
+			"tauschema" : "codecs/bin_php/src"
+		}
+	}
+}
