@@ -1,5 +1,18 @@
 # README of SchemaToos
 
+Schema tools has been created to help on software communication interface 
+description, interface consistency verification, message correctness verification
+and automatic conversion between different formats: binary TLV, json and other 
+language specific dictionaries.
+
+Several tools exist like Protocol Buffers and others. Those systems
+have some limitations or have grown over time to be overcomplex that led to 
+creation of this software. Thus this does have strong influence on those 
+developments, I have tried to simplify the schema language to keep it very 
+flexible, small and functional. The aim is to keep it small and simple.
+
+## Development Roadmap.
+
 SchemaTools contains set of utils to work with schema:
 
  -  [x] Schema Checker (Python3)
@@ -16,15 +29,15 @@ SchemaTools contains set of utils to work with schema:
  -  [ ] Binary validator for C
 
  -  [x] Binary codec for PHP
- -  [ ] Binary validator for PHP
  -  [ ] Binary <-> object converter for PHP
+ -  [ ] Object validator for PHP
 
  -  [ ] Binary codec for javascript
  -  [ ] Binary <-> JSON for javascript
  -  [ ] JSON validator in javascript
  
  
- It is work in progress.
+ It is work in progress: (31%) 5/16.
  
 ## How to use
 
@@ -206,6 +219,17 @@ Primitive types are types that map to computer memory model.
 
 Complex types are collection of items with primitive or complex types.
 Two complex types are defined with element that opens scope: **COLLECTION** and **VARIADIC**. 
+
+```
+<name> : COLLECTION = <instance>
+```
+
+or
+
+```
+<name> : VARIADIC = <instance>
+```
+
 Scope is closed with **END** as type name.
 
 ```

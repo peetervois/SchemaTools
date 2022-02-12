@@ -1,6 +1,6 @@
 
 
-#include "../tauschema_codec.h"
+#include "../src/tauschema_codec.h"
 #include "stdio.h"
 
 extern size_t count_tests;
