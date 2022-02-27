@@ -1,0 +1,22 @@
+
+#
+# Schema that tests how to take only partial schema into interface.
+# The situation may be that a generic server does have huge schema, so
+# huge that the embedded device does not have memory nor need for it.
+# The device may need to implement only few of the schema items.
+# This is how to implement specific subset of huge schema.
+#
+# In the following schema only the set item is needed from the nice.schema.
+# Writing like this will derive everithing from the set.
+# The flat tree will contain only items needed for the set
+#
+
+huge : COLLECTION
+
+  $include nice.schema
+
+huge : END
+
+
+huge.set
+

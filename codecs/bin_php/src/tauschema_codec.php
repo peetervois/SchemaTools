@@ -63,28 +63,44 @@ class Iterator
     }
 
     /**
+     * Reset the iterator to the beginning, keep ref to buffer.
+     *
+     * @return \tauschema\Iterator
+     */
+    function reset()
+    {
+        $this->p_idx = 0;
+        $this->p_next = 0;
+        $this->p_val = 0;
+        $this->p_tag = - 1;
+        $this->p_vlen = 0;
+        $this->p_scope = 0;
+        $this->p_lc = 0;
+
+        return $this;
+    }
+
+    /**
      * Return true if the character is EOF (End of File)
      *
      * @return boolean
      */
     function is_eof()
     {
-        $v = ord($this->p_msg[$this->p_idx]);
-        if ((($v & 3) == 3) && ($v > 3)) {
+        if (($this->p_lc == 3) && ($this->p_tag != 0)) {
             return true;
         }
         return false;
     }
-    
+
     /**
      * Return true if the characer is EOS (End of Scope) or EOF (End of File)
-     * 
+     *
      * @return boolean
      */
     function is_end()
     {
-        $v = ord($this->p_msg[$this->p_idx]);
-        if (($v & 3) == 3) {
+        if ($this->p_lc == 3) {
             return true;
         }
         return false;
@@ -116,9 +132,9 @@ class Iterator
     }
 
     /**
-     * Return true if the iterator is complete
+     * Check if the iterator is complete
      *
-     * @return boolean
+     * @return boolean - true if all the elements of TLV have been parsed
      */
     function is_complete()
     {
@@ -137,9 +153,9 @@ class Iterator
     }
 
     /**
-     * Return true if the iterator is clean for write.
+     * Check if the iterator has not parsed TLV.
      *
-     * @return boolean
+     * @return boolean - true if the iterator is clean for write
      */
     function is_clean()
     {
@@ -161,24 +177,35 @@ class Iterator
             return 0;
         return $this->p_next - $this->p_idx;
     }
-    
+
+    /**
+     * Return if the iterator is at start of scope
+     *
+     * @return boolean
+     */
+    function is_scope()
+    {
+        return (($this->p_lc & 3) == 1);
+    }
+
     /**
      * Return amount of free space in buffer
-     * 
+     *
      * @throws \Exception
      * @return number
      */
     function buff_free()
     {
-        if( $this->p_ebuf <= 0 )
+        if ($this->p_ebuf <= 0)
             throw new \Exception("No buffer attached");
         $ti = $this->clone();
-        do
-        {
-            $ti->decode_to_end();
+        while ((! $ti->is_eof()) && ($ti->is_ok())) {
+            $ti->exit_scope();
         }
-        while( ! $ti->is_eof() );
-        return $this->p_ebuf - $ti->p_idx -1;
+        if ($ti->is_ok()) {
+            return $this->p_ebuf - $ti->p_idx - 1;
+        }
+        return 0;
     }
 
     /**
@@ -195,7 +222,7 @@ class Iterator
             throw new \Exception("Incorrect moment to read vluint");
         do {
             if (! $this->is_ok()) {
-                return -1;
+                return - 1;
             }
             if ($this->p_next >= $this->p_ebuf) {
                 $this->p_ebuf = - 1; // ran out of buffer
@@ -229,10 +256,7 @@ class Iterator
         do {
             if (! $this->is_ok())
                 return false;
-            if ($x & (~ 0x7f))
-                $b = 0x80;
-            else
-                $b = 0x00;
+            $b = ($x & (~ 0x7f)) ? 0x80 : 0x00;
             $b |= $x & 0x7f;
             $this->p_msg[$this->p_next] = chr($b);
             $this->p_next ++;
@@ -258,127 +282,174 @@ class Iterator
     }
 
     /**
-     * Decodes from binary buffer next TLV item and stores info
-     * inside iter element.
+     * Moves iterator to next element.
+     * Decodes from binary buffer next TLV item
+     * and stores info inside iter element.
+     *
      * It does not skip over stuffing.
-     * When returning false, then the iterator is no longer usable.
+     *
+     * It stays onto the current scope and jumps over the subscope. Also it stays
+     * into end of scope or end of file tag.
+     *
+     * When returning false, then there was end of scope or end of file or the
+     * next element does not exist or the iterator becomes invalid.
      *
      * @return boolean - true on success, false on failure.
      */
-    function decode_next()
+    function next()
     {
         $tag = 0;
         $len = 0;
-        $this->p_idx = $this->p_next;
-        $this->p_val = $this->p_next;
-        while (1) {
+        $sco = $this->p_scope; // store the scope, since we have to skip it over
+        $rv = true;
+
+        if (! $this->is_ok()) {
+            throw new \Exception("Iterator is not ok");
+        }
+
+        do {
+            //
+            // This loop is used to recurse over all subscopes,
+            // while $sco < $this->p_scope
+            //
+            if (! $this->is_ok()) {
+                // iterator became invalid
+                $rv = false;
+                continue; // the while cycle handles the exit
+            }
+            if ($this->is_end()) {
+                if ($sco == $this->p_scope) {
+                    // echo "we do not step over end\n";
+                    // this also handles situation where ->p_scope == 0.
+                    $rv = false;
+                    continue; // the while cycle handles the exit
+                } else if ($this->is_eof()) {
+                    // echo "we do not step over end of file\n";
+                    $rv = false;
+                    continue; // the while cycle handles the exit
+                } else {
+                    // we exit from any subscopes
+                    $this->p_scope -= 1;
+                }
+            }
+            if ($this->is_scope()) {
+                // we skip over the scope
+                $this->p_scope += 1;
+            }
+            // advance the iterator
+            $this->p_idx = $this->p_next;
+            $this->p_val = $this->p_next;
+
+            // decode tag
             $tag = $this->decode_vluint();
             if (! $this->is_ok())
-                return false;
-            if (($tag & 3) == 3) {
+                return false; // the iterator became invalid
+            $this->p_lc = $tag & 3;
+            $this->p_tag = $tag >> 2;
+
+            if ($this->is_end()) {
                 // end of scope
-                if (($this->p_scope == 0) || ($tag > 3)) {
-                    // at the root level we stay at the END marker
-                    // when tag part of the END is not 0, then it is also end of file
-                    $this->p_next = $this->p_idx;
-                    $this->p_val = $this->p_idx;
-                    $this->p_tag = - 1;
-                    $this->p_vlen = 0;
-                    $this->p_scope = 0;
-                    $this->p_lc = 0;
-                    return false;
-                }
-                $this->p_scope -= 1;
-                $this->p_idx = $this->p_next;
-                continue;
+                // we stay at the END marker
+                // when tag part of the END is not 0, then it is also end of file
+                $this->p_vlen = 0;
+                $this->p_tag = $this->p_tag != 0 ? 1 : 0;
+                $rv = ($sco < $this->p_scope);
+                continue; // the while cycle handles the exit
             }
-            break;
-        }
-        $len = 0;
-        if (($tag & 1) == 1) {
-            // collection or variadic tag
+
+            // decode length
+            $len = 0;
+            if ($this->p_lc == 2) {
+                $len = $this->decode_vluint();
+                if (! $this->is_ok())
+                    return false; // the iterator became invalid
+            }
+            $this->p_vlen = $len;
+
+            // verify length, end of buffer e.t.c
+            if ($len > 0) {
+                if ((($this->p_next + $len) <= $this->p_next) || (($this->p_next + $len) > $this->p_ebuf)) {
+                    // the buffer overflow is happening
+                    $this->p_val = - 1;
+                    $this->p_ebuf = - 1;
+                    return false; // the iterator became invalid
+                }
+                $this->p_val = $this->p_next;
+                $this->p_next += $len; // idx may now equal to exbuf
+            } else {
+                // there value is NULL
+                $this->p_val = - 1;
+            }
+        } while ($rv && ($sco < $this->p_scope));
+
+        return $rv;
+    }
+
+    /**
+     * Enter the iterator into subscope if the iterator is at the beginning of scope.
+     * Returns false if the entry into scope failed. Iterator stays to position.
+     *
+     * If the $tag parameter is default or 0, then the current position of iterator
+     * has to be entered.
+     *
+     * @param number $tag
+     *            - the next tag of the scope to enter
+     * @return boolean
+     */
+    function enter_scope($tag = 0)
+    {
+        $rv = true;
+        if ($tag > 0)
+            $rv = $this->go_to_tag($tag);
+        $rv = $rv && $this->is_scope();
+
+        if ($rv) {
+            $this->p_idx = $this->p_next;
+            $this->p_val = $this->p_next;
+            $this->p_lc = 0;
             $this->p_scope += 1;
         }
-        if (($tag & 2) == 2) {
-            $len = $this->decode_vluint();
-            if (! $this->is_ok())
-                return false;
+
+        return $rv;
+    }
+
+    /**
+     * Exit the iterator from current scope.
+     * It does advance the iterator to the
+     * next element after end marker of the current scope. But it does not decode
+     * the next element. Uset the ->next() after this.
+     *
+     * If it returns false, then the iterator is mostlikely not usable anymore.
+     *
+     * @return boolean
+     */
+    function exit_scope()
+    {
+        $rv = $this->is_ok();
+
+        while ($rv && (! $this->is_end())) {
+            $rv = $this->next();
         }
-        $this->p_lc = $tag & 3;
-        $this->p_tag = $tag >> 2;
-        $this->p_vlen = $len;
-        if ($len > 0) {
-            if ((($this->p_next + $len) <= $this->p_next) || (($this->p_next + $len) > $this->p_ebuf)) {
-                $this->p_val = - 1;
-                $this->p_ebuf = - 1;
-                return false;
-            }
+        if (! $this->is_ok()) {
+            $rv = false;
+        } else if ($this->is_eof()) {
+            // stay at eof
+            $rv = true;
+        } else if ($this->p_scope == 0) {
+            // eos at scope 0 is disabled
+            $rv = false;
+            $this->p_ebuf = - 1;
+        } else if ($this->is_end()) {
+            // advance the iterator
+            $this->p_idx = $this->p_next;
             $this->p_val = $this->p_next;
-            $this->p_next += $len; // idx may now equal to exbuf
+            $this->p_lc = 0;
+            $this->p_scope -= 1;
+            $rv = true;
         } else {
-            $this->p_val = - 1;
+            $rv = false;
         }
-
-        return true;
-    }
-
-    /**
-     * Call this method when writing of the element has been finished.
-     * It does advance the iterator so that new element may be written
-     * right after the current element. Note that in case you are over-
-     * writing the existing binary TLV, then use decode_next() instead.
-     * This method is used when you are appending to the tlv, it does
-     * destroy the binary structure beneath.
-     *
-     * @return boolean
-     */
-    function write_next()
-    {
-        if (! $this->is_ok())
-            throw new \Exception("The iterator is not ok");
-        $this->p_idx = $this->p_next;
-        $this->p_val = $this->p_idx;
-        $this->p_vlen = 0;
-        $this->p_tag = 0;
-        $this->p_lc = 0;
-        // note: iter->p_scope stays as it is
-        return true;
-    }
-
-    /**
-     * Advance the iterator to the element next item on the same scope.
-     *
-     * @return boolean - true on succes, false on failure.
-     */
-    function decode_to_next()
-    {
-        $scope = $this->p_scope;
-        do {
-            if (! $this->decode_next())
-                return false;
-            if (! $this->is_ok())
-                return false;
-        } while ($this->p_scope > $scope);
-        return true;
-    }
-
-    /**
-     * Advance the iterator to the element next item after end of current scope
-     *
-     * @return boolean
-     */
-    function decode_to_end()
-    {
-        $scope = $this->p_scope;
-        do {
-            if (! $this->decode_next()) {
-                if (! $this->is_ok())
-                    return false;
-                else
-                    return true; // EOF
-            }
-        } while ($this->p_scope >= $scope);
-        return true;
+        return $rv;
     }
 
     /**
@@ -387,48 +458,37 @@ class Iterator
      *
      * @return boolean
      */
-    function decode_to_stuffing()
+    function go_to_stuffing()
     {
-        $scope = $this->p_scope;
-        do {
-            if (! $this->decode_next()) {
-                if (! $this->is_ok())
-                    return false;
-                else
-                    return true; // EOF
-            }
-            if (($this->p_tag == 0) && ($this->p_lc != 1) && ($this->p_scope == $scope)) {
+        while ($this->next()) {
+            if ($this->is_stuffing()) {
                 // stuffing has been found
                 return true;
             }
-        } while ($this->p_scope >= $scope);
-        return false;
+        }
+
+        if (! $this->is_ok())
+            return false;
+        else if ($this->is_eof())
+            return true; // EOF
+        return false; // EOS
     }
 
     /**
-     * Advance the iterator to the next tag in the scope or next element
-     * after end of scope
+     * Advance the iterator to the next tag in the scope.
      *
      * @param number $tag
      * @return boolean
      */
-    function decode_to_tag($tag)
+    function go_to_tag($tag)
     {
-        $scope = $this->p_scope;
-        do {
-            if (! $this->decode_next()) {
-                if (! $this->is_ok())
-                    return false;
-                else
-                    return false; // EOF the tag was not found
-            }
-            if (! $this->is_ok())
-                return false;
-            if (($this->p_tag == $tag) && ($this->p_lc != 3) && (($this->p_scope - ($this->p_lc == 1)) == $scope)) {
-                // stuffing has been found
+        while ($this->next()) {
+            // echo " tag is " . $this->tag() . "\n";
+            if ($this->tag() == $tag) {
+                // the tag has been found
                 return true;
             }
-        } while ($this->p_scope >= $scope);
+        }
         return false;
     }
 
@@ -477,12 +537,12 @@ class Iterator
                 return $finalize(false);
             $tlv = $totlen - $this->p_next + $this->p_idx;
             $xv = $tlv;
-            $lv = $this->vluint_len($xv);;
+            $lv = $this->vluint_len($xv);
+            ;
             // find the amount of exact data
             do {
                 $xv = $tlv - $lv;
                 $lv = $this->vluint_len($xv);
-                
             } while (($xv + $lv) != $tlv);
             if (! $this->encode_vluint($xv))
                 return $finalize(false);
@@ -497,7 +557,7 @@ class Iterator
 
     /**
      * Erase the current item, turn fully into stuffing
-     * 
+     *
      * @throws \Exception
      * @return unknown
      */
@@ -507,14 +567,16 @@ class Iterator
             throw new \Exception("The iterator is not ok");
         if (! $this->is_complete())
             throw new \Exception("only complete iterator can erase element");
-        if ( $this->is_end() )
+        if ($this->is_end())
             throw new \Exception("EOF or EOS can not be erased");
-        return $this->write_stuffing( $this->p_next - $this->p_idx );
+        return $this->write_stuffing($this->p_next - $this->p_idx);
     }
 
     /**
      * Open new scope on the binary stream.
      * Scopes are COLLECTION or VARIADIC
+     *
+     * The iterator will enter into the scope
      *
      * @param int $tag
      * @return boolean
@@ -531,6 +593,15 @@ class Iterator
         $k <<= 2;
         $k += 1;
         $is_eof = $this->is_eof();
+
+        if ($is_eof) {
+            // prepare for adding to the end of the file, clean the iter
+            $this->p_next = $this->p_idx;
+            $this->p_val = $this->p_idx;
+            $this->p_lc = 0;
+            $this->p_tag = 0;
+        }
+
         if (! $this->encode_vluint($k) || ($this->p_next >= $this->p_ebuf)) {
             $this->p_next = $this->p_idx;
             if ($is_eof && ($this->p_next < $this->p_ebuf))
@@ -561,6 +632,15 @@ class Iterator
             throw new \Exception("Can not close root scope");
         $k = 3;
         $is_eof = $this->is_eof();
+
+        if ($is_eof) {
+            // prepare for adding to the end of the file, clean the iter
+            $this->p_next = $this->p_idx;
+            $this->p_val = $this->p_idx;
+            $this->p_lc = 0;
+            $this->p_tag = 0;
+        }
+
         if (! $this->encode_vluint($k) || ($this->p_next >= $this->p_ebuf)) {
             $this->p_next = $this->p_idx;
             if ($is_eof && ($this->p_next < $this->p_ebuf))
@@ -572,7 +652,7 @@ class Iterator
         $this->p_val = - 1;
         $this->p_lc = 3;
         $this->p_scope -= 1;
-        $this->p_tag = - 1;
+        $this->p_tag = 0;
         return true;
     }
 
@@ -639,6 +719,14 @@ class Iterator
             return $rv;
         };
 
+        if ($is_eof) {
+            // prepare for adding to the end of the file, clean the iter
+            $this->p_next = $this->p_idx;
+            $this->p_val = $this->p_idx;
+            $this->p_lc = 0;
+            $this->p_tag = 0;
+        }
+
         if (! $this->is_complete()) {
             // Note if you want to append it in non space saving way, then
             // before calling this method, do tausch_write( iter, &tag, &value, 1 )
@@ -657,6 +745,8 @@ class Iterator
             return $finalize(true);
         } else {
             // the iterator already has been read, we are overwriting
+            if ($this->p_tag != $tag)
+                return finalize(false); // the tag must be the same here
             $totlen = $this->p_next - $this->p_idx;
             $tm = $this->clone();
             $tm->p_next = $tm->p_idx;
@@ -669,7 +759,7 @@ class Iterator
                 // only true value can be encoded
                 if ($val == true) {
                     $tlv = $tag << 2;
-                    if (! $tm->encode_vluint($tlv + 2))
+                    if (! $tm->encode_vluint($tlv))
                         return $finalize(false);
                     // append the single byte, length 0
                     if ($totlen > $bytes) {
@@ -962,6 +1052,15 @@ class Iterator
             }
             return $str;
         };
+
+        if ($is_eof) {
+            // prepare for adding to the end of the file, clean the iter
+            $this->p_next = $this->p_idx;
+            $this->p_val = $this->p_idx;
+            $this->p_lc = 0;
+            $this->p_tag = 0;
+        }
+
         if ($this->is_complete()) {
             // we are overwriting the meomry
             if ($this->p_tag != $tag)

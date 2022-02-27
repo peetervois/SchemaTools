@@ -4,7 +4,7 @@
 #
 
 subcoll : COLLECTION = 1
-    # this collection is from subschem
+    # this collection is from \ "subschem"
 	asi : UINT = 1
 : END
 

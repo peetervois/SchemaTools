@@ -185,6 +185,17 @@ if __name__ == "__main__":
                 print( "  ***  F A I L E D   ***  ")
                 num_fails += 1
         print()
+    
+    print(" --- testing partial schema")
+    partfactory = SchemaFactory()
+    partfactory.loadfile( "partial.schema" )
+    verify_flattree( partfactory )
+    print()
+    
+    print(" --- testing php flat tree ")
+    print( partfactory.produce_php_flattree() )
+        
+        
     print()
     print(     "--------------------------------")
     print(     "     Number of tests ran: {}".format(num_tests))

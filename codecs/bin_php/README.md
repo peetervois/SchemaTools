@@ -18,18 +18,18 @@ function handle( string &$buf )
 	$iter = $iter_ini->clone();
 	$error = ! $iter_>is_ok();
 	
-	$error ||= ! $iter->decode_to_tag( MY_TAG );
-	$error ||= ! $iter->decode_to_tag( MY_SUBTAG );
-	$error ||= ! $iter->is_null();
+	$error = $error || ! $iter->enter_scope( MY_TAG );
+	$error = $error || ! $iter->go_to_tag( MY_SUBTAG );
+	$error = $error || ! $iter->is_null();
 	$getval = 0;
-	$error ||= ! $iter->read( $getval, "SINT-32" );
+	$error = $error || ! $iter->read( $getval, "SINT-32" );
 	$value = 43;
-	$error ||= ! $iter->write( MY_SUBTAG, $value, "SINT-32" );
-	$error ||= ! $iter->decode_to_end();
+	$error = $error || ! $iter->write( MY_SUBTAG, $value, "SINT-32" );
+	$error = $error || ! $iter->exit_scope();
 	
 	$iter->copy_from( $iter_ini );   // the easy initialization
 	
-	$error ||= ! $iter->decode_to_tag( MY_ANOTHER_TAG );
+	$error = $error || ! $iter->go_to_tag( MY_ANOTHER_TAG );
 	
 	if( ! $error )
 	{

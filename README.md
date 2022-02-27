@@ -1,4 +1,4 @@
-# README of SchemaToos
+# README of SchemaTools
 
 Schema tools has been created to help on software communication interface 
 description, interface consistency verification, message correctness verification
@@ -18,7 +18,7 @@ SchemaTools contains set of utils to work with schema:
  -  [x] Schema Checker (Python3)
  -  [x] Flat tree compiler,
  -  [ ] Flat tree export for C,
- -  [ ] Flat tree export for PHP,
+ -  [x] Flat tree export for PHP,
  -  [ ] Flat tree export for javascript
 
  -  [x] Python dict validator in Python3
@@ -37,7 +37,7 @@ SchemaTools contains set of utils to work with schema:
  -  [ ] JSON validator in javascript
  
  
- It is work in progress: (31%) 5/16.
+ It is work in progress: (37%) 6/16.
  
 ## How to use
 

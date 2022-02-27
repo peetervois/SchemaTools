@@ -24,17 +24,20 @@ void handle( uint8_t *buf, size_t len )
 	// Decode the iterator to the element that we
 	// are interested of. Search for the root level tag.
 	
-	if( ! tausch_decode_to_tag( &iter, MY_TAG ) )
+	if( ! tausch_iter_go_to_tag( &iter, MY_TAG ) )
 	{
 		// The tag does not exist
 		return;
 	}
+
+	// Iterator does not change into subscope automatically
+	if( ! tausch_iter_enter_scope( &iter ) )
+	{
+		// The iterator apears not to be a collection
+		return;
+	}
 	
-	// If MY_TAG is collection, then iterator entered
-	// directly into beginning of the subscope of the MY_TAG.
-	// Now decode the iterator to the MY_TAG.MY_SUBTAG
-	
-	if( ! tausch_decode_to_tag( &iter, MY_SUBTAG ) )
+	if( ! tausch_iter_go_to_tag( &iter, MY_SUBTAG ) )
 	{
 		// The tag does not exist
 		return;
@@ -47,7 +50,7 @@ void handle( uint8_t *buf, size_t len )
 	}
 	
 	int32_t getval = 0;
-	if( ! tausch_read( &iter, &getval ) )
+	if( ! tausch_iter_read( &iter, &getval ) )
 	{
 		// the reading of the value failed
 		return;
@@ -56,7 +59,7 @@ void handle( uint8_t *buf, size_t len )
 	// If you want to overwrite the value in the message
 	
 	int32_t value = 43;
-	if( ! tausch_write( &iter, MY_SUBTAG, &value ) )
+	if( ! tausch_iter_write( &iter, MY_SUBTAG, &value ) )
 	{
 		// overwriting failed
 		return;
@@ -64,7 +67,7 @@ void handle( uint8_t *buf, size_t len )
 	
 	// To exit from the subscope
 	
-	if( ! tausch_decode_to_end( &iter ) )
+	if( ! tausch_iter_exit_scope( &iter ) )
 	{
 		// Failed to find the end of the scope
 		return;
@@ -74,7 +77,7 @@ void handle( uint8_t *buf, size_t len )
 	
 	iter = iter_init;   // the easy initialization
 	
-	if( ! tausch_decode_to_tag( &iter, MY_ANOTHER_TAG ) )
+	if( ! tausch_iter_go_to_tag( &iter, MY_ANOTHER_TAG ) )
 	{
 		// The tag does not exist
 		return;
@@ -93,21 +96,22 @@ void handle( uint8_t *buf, size_t len )
 
 	// Initialize the iterator
 	
-	error ||= tausch_iter_init( &iter, buf, len );   // initialize the iterator
+	error = error || tausch_iter_init( &iter, buf, len );   // initialize the iterator
 	iter_init = iter;                      // store the value for easy reinitialization
 	
-	error ||= ! tausch_decode_to_tag( &iter, MY_TAG );
-	error ||= ! tausch_decode_to_tag( &iter, MY_SUBTAG );
-	error ||= ! tausch_iter_is_null( &iter );
+	error = error || ! tausch_iter_go_to_tag( &iter, MY_TAG );
+	error = error || ! tausch_iter_enter_scope( &iter );
+	error = error || ! tausch_iter_go_to_tag( &iter, MY_SUBTAG );
+	error = error || ! tausch_iter_is_null( &iter );
 	int32_t getval = 0;
-	error ||= ! tausch_read( &iter, &getval );
+	error = error || ! tausch_iter_read( &iter, &getval );
 	int32_t value = 43;
-	error ||= ! tausch_write( &iter, MY_SUBTAG, &value );
-	error ||= ! tausch_decode_to_end( &iter );
+	error = error || ! tausch_iter_write( &iter, MY_SUBTAG, &value );
+	error = error || ! tausch_iter_exit_scope( &iter );
 	
 	iter = iter_init;   // the easy initialization
 	
-	error ||= ! tausch_decode_to_tag( &iter, MY_ANOTHER_TAG );
+	error = error || ! tausch_iter_go_to_tag( &iter, MY_ANOTHER_TAG );
 	
 	if( ! error )
 	{

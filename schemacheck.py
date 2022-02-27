@@ -172,6 +172,12 @@ class SchemaFactory:
                 nam_typ.append('')
         # split the name part
         nam = nam_typ[0].strip().split(".") # nam is list of namespace names 
+        # verify reserved names
+        reservednames = ["_t","_n"]
+        for i in reservednames :
+            for j in nam :
+                if i == j :
+                    raise BaseException( "error: reserved name '" +i +"' is used; " +ln )
         # split the line by '='
         typ_num = nam_typ[1].split("=")
         if len(typ_num) > 2 :
@@ -307,6 +313,8 @@ class SchemaFactory:
     
     _opened_files : list = None
     
+    _schema_name : str = None
+    
     def loadfile(self, path : str):
         """
         Load schema from file
@@ -317,7 +325,9 @@ class SchemaFactory:
             raise BaseException( "error: circular inclusion of {}".format(apath) )
         self._opened_files.append(apath)
         dirname = posixpath.dirname( apath )
-        #print(" --- {}".format(apath))
+        if self._schema_name == None :
+            self._schema_name = posixpath.basename( apath ).rsplit( ".", 1 )[ 0 ];
+        print(" --- {}".format(apath))
         f = open( apath, "r" )
         lnum = 0
         while True:
@@ -535,6 +545,7 @@ class SchemaFactory:
             # create flatrow for the root item
             # and place it as the item 0
             self.root._flatrow = new_row(self.root)
+            self.root._flatrow['next'] = -1;
             self.root._flattree = tree
         else:
             # the flatrow actually does exist already
@@ -554,7 +565,7 @@ class SchemaFactory:
                     v._flatrow = new_row(v)
                     if len(tree) > 6 :
                         pass
-                if itm._flatrow['sub'] == 0:
+                if itm._flatrow['sub'] <= 0:
                     itm._flatrow['sub'] = v._flatrow['_idx']
                 else:
                     i = itm._flatrow['sub']
@@ -573,11 +584,39 @@ class SchemaFactory:
         scan_subitems(self.root)
                     
         return self.root._flattree
+    
+    def produce_php_flattree(self) -> str:
+        """
+        Produce PHP flat-tree source file section as str that contains the flat tree.
+        """
+        rv = '<?php\n\n'
+        rv += 'namespace tauschema_flattree;\n\n'
+        rv += 'class ' + self._schema_name + '\n{\n'
+        rv += '  public static $schema=array('
+        tree = self.generate_flat_tree()
+        prep = '\n'
         
+        for i in tree :
+            record = prep + '    array("item"=>' + str(i['item'])
+            record += ',"name"=>"' + i['name'] + '"'
+            record += ',"type"=>"' + i['type'] + '"'
+            record += ',"desc"=>"' + i['desc'].replace("\\","\\\\").replace("\n","\\n").replace("\"","\\\"") + '"'
+            record += ',"sub"=>' + str(i['sub'])
+            record += ',"next"=>' + str(i['next'])
+            rv += record + ')'
+            prep = ',\n'
+            pass
+        rv += "\n  );\n}\n\n"
+        rv += "?>"
+        
+        return rv
+    
     pass
+
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Validate and process Tauria\'s schema files.')
+    parser.add_argument('--php', action=argparse.BooleanOptionalAction, help="Wether to print out PHP flat tree")
     parser.add_argument('fname', type = str, nargs=1, help="The file name to start the schema parsing from.")
     args = parser.parse_args()
     
@@ -585,8 +624,11 @@ if __name__ == "__main__":
     
     factory.loadfile( args.fname[0] )
     
-            
-    print( 'done' )
+    if args.php :
+        phptr = factory.produce_php_flattree()
+        print( phptr )
+    else:        
+        print( 'done' )
         
     
     
