@@ -37,92 +37,12 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-/**
- * Runtime formatting of the buffer.
- * When at the root leve, end of scope is found, it means
- * no more items placed into buffer.
- *
- * @arg buf : uint8_t* - pointer to the buffer
- */
-void tausch_format_buf( uint8_t *buf );
+#ifndef tsch_size_t
+#warning "tsch_size_t is not defined, you need to define it on command line: -Dtsch_size_t=uint16_t "
+#define tsch_size_t uint8_t
+#endif
 
-typedef struct
-{
-    /// Pointer to the buffer start, if sbuf == NULL, then the iter is invalid.
-    uint8_t *sbuf;
-
-    /// Pointer to the buffer end, if ebuf == NULL, then the iter is invalid.
-    uint8_t *ebuf;
-
-    /// Pointer to start of current iterator.
-    uint8_t *idx;
-
-    /// Pointer to index position of next item.
-    uint8_t *next;
-
-    /// Pointer to the value field or NULL,
-    /** if val == next, then the iter is incomplete,
-     * if val == next, then the iter is incomplete,
-     * if val == next, then the iter is incomplete,
-     * if val == NULL, then the value is null.
-     */
-    uint8_t *val;
-
-    /// Tag value of the item.
-    size_t tag;
-
-    /// Length of the value part.
-    size_t vlen;
-
-    /// The scope depth of the structure.
-    uint16_t scope;
-
-    /// The l and c bits of the tag,
-    /**  if lc == 4 then
-     * the iterator points to end of buffer.
-     */
-    uint8_t lc;
-
-} tausch_iter_t;
-
-/**
- * Run-time initiation of the iterator
- *
- * @arg iter : tausch_iter_t* - pointer to the iterator to initialize
- * @arg buf : uint8_t* - pointer to the buffer
- * @arg size : size_t - amount of data in the buffer
- * @return tausch_iter_t* - pointer to the iter
- */
-tausch_iter_t* tausch_iter_init( tausch_iter_t *iter, uint8_t *buf, size_t size )
-;
-
-/**
- * Compile-time initiation of the iterator
- *
- * @arg buf : uint8_t* - pointer to the buffer
- * @arg size : size_t - amount of data in the buffer
- */
-#define TAUSCH_ITER_INIT( buf, size ) \
-{\
-	.ebuf = (uint8_t*)(buf) + (size), \
-	.sbuf = (uint8_t*)(buf),\
-	.idx = (uint8_t*)(buf), \
-	.next = (uint8_t*)(buf), \
-	.val = (uint8_t*)(buf), \
-	.tag = ~(size_t)0, \
-	.vlen = 0, \
-	.scope = 0, \
-	.lc = 0 \
-}
-
-/**
- * Reset the iterator to the beginning, keep ref to buffer.
- *
- * @param iter : tausch_iter_t* - the iterator to be reset
- * @return tausch_iter_t*
- */
-tausch_iter_t* tausch_iter_reset( tausch_iter_t *iter )
-;
+#define TSCH_NOTHING (~(tsch_size_t)0)
 
 /**
  * Blob structure that holds the size of memroy available and how many bytes is used in.
@@ -145,27 +65,13 @@ tausch_iter_t* tausch_iter_reset( tausch_iter_t *iter )
  *   use_the_blob( &actual );
  * }
  *
- * void slice_of_blob( tausch_blob_t *blob, size_t offset, size_t len )
- * {
- *   // produce clone of the blob
- *   tausch_blob_t actual = *blob;
- *   // now take slice out of the blob
- *   if( ((offset + len) > offset) && ((offset+len) <= actual.len) )
- *   {
- *      // no memory access fault would happen
- *      actual.buf += offset;
- *      actual.len = len;
- *      use_the_blob( &actual );
- *   }
- * }
- *
  */
 typedef struct
 {
     /// Pointer to the buffer start
     uint8_t *buf;
     /// length of the buffer in bytes
-    size_t len;
+    tsch_size_t len;
 } tausch_blob_t;
 
 /**
@@ -176,7 +82,7 @@ typedef struct
  */
 #define TAUSCH_BLOB_NEW( name, size )\
     uint8_t name ## _buf[ size ];\
-    tausch_blob_t name = { .buf = name ## _buf, .len = size, .count = 0 }
+    tausch_blob_t name = { .buf = name ## _buf, .len = size }
 
 /**
  * Produce result blob that references only slice of orig blob.
@@ -187,7 +93,95 @@ typedef struct
  * @param len : size_t - the amount of bytes in resulting blob reference
  * @return
  */
-tausch_blob_t* tausch_blob_slice( tausch_blob_t *result, tausch_blob_t *orig, size_t offset, size_t len );
+tausch_blob_t* tausch_blob_slice( tausch_blob_t *result, tausch_blob_t *orig, tsch_size_t offset, tsch_size_t len );
+
+
+/**
+ * Runtime formatting of the buffer.
+ * When at the root leve, end of scope is found, it means
+ * no more items placed into buffer.
+ *
+ * @arg buf : uint8_t* - pointer to the buffer
+ */
+void tausch_format_buf( uint8_t *buf );
+
+typedef struct
+{
+    /// Pointer to the buffer start, if sbuf == NULL, then the iter is invalid.
+    uint8_t *buf;
+
+    /// Pointer to the buffer end, if ebuf == NULL, then the iter is invalid.
+    tsch_size_t ebuf;
+
+    /// Pointer to start of current iterator.
+    tsch_size_t idx;
+
+    /// Pointer to index position of next item.
+    tsch_size_t next;
+
+    /// Pointer to the value field or NULL,
+    /** if val == next, then the iter is incomplete,
+     * if val == next, then the iter is incomplete,
+     * if val == next, then the iter is incomplete,
+     * if val == NULL, then the value is null.
+     */
+    tsch_size_t val;
+
+    /// Tag value of the item.
+    tsch_size_t tag;
+
+    /// Length of the value part.
+    tsch_size_t vlen;
+
+    /// The scope depth of the structure.
+    uint16_t scope;
+
+    /// The l and c bits of the tag,
+    /**  if lc == 4 then
+     * the iterator points to end of buffer.
+     */
+    uint8_t lc;
+
+} tausch_iter_t;
+
+/**
+ * Run-time initiation of the iterator
+ *
+ * @arg iter : tausch_iter_t* - pointer to the iterator to initialize
+ * @arg buf : uint8_t* - pointer to the buffer
+ * @arg size : size_t - amount of data in the buffer
+ * @return tausch_iter_t* - pointer to the iter
+ */
+tausch_iter_t* tausch_iter_init( tausch_iter_t *iter, uint8_t *buf, tsch_size_t size )
+;
+
+/**
+ * Compile-time initiation of the iterator
+ *
+ * @arg buf : uint8_t* - pointer to the buffer
+ * @arg size : size_t - amount of data in the buffer
+ */
+#define TAUSCH_ITER_INIT( buffer, size ) \
+{\
+	.ebuf = (size), \
+	.buf = (uint8_t*)(buffer),\
+	.idx = 0, \
+	.next = 0, \
+	.val = 0, \
+	.tag = TSCH_NOTHING, \
+	.vlen = 0, \
+	.scope = 0, \
+	.lc = 0 \
+}
+
+/**
+ * Reset the iterator to the beginning, keep ref to buffer.
+ *
+ * @param iter : tausch_iter_t* - the iterator to be reset
+ * @return tausch_iter_t*
+ */
+tausch_iter_t* tausch_iter_reset( tausch_iter_t *iter )
+;
 
 /**
  * Methods for copying data out from the TLV value field.
@@ -285,7 +279,7 @@ bool tausch_iter_is_clean( tausch_iter_t *iter )
 /**
  * @return size of the stuffing when the iter is stuffing, otherwise 0
  */
-size_t tausch_iter_is_stuffing( tausch_iter_t *iter )
+tsch_size_t tausch_iter_is_stuffing( tausch_iter_t *iter )
 ;
 
 /**
@@ -303,7 +297,7 @@ bool tausch_iter_is_scope( tausch_iter_t *iter )
  * @param iter : tausch_iter_t*
  * @return size_t
  */
-size_t tausch_iter_buff_free( tausch_iter_t *iter )
+tsch_size_t tausch_iter_buff_free( tausch_iter_t *iter )
 ;
 
 /**
@@ -314,7 +308,7 @@ size_t tausch_iter_buff_free( tausch_iter_t *iter )
  * @return the decoded tag value, or ~0 (all bits set) on failure
  *
  */
-size_t tausch_iter_decode_vluint( tausch_iter_t *iter )
+tsch_size_t tausch_iter_decode_vluint( tausch_iter_t *iter )
 ;
 
 /**
@@ -326,7 +320,7 @@ size_t tausch_iter_decode_vluint( tausch_iter_t *iter )
  * @return true on success
  * @return false on failure
  */
-bool tausch_iter_encode_vluint( tausch_iter_t *iter, size_t val )
+bool tausch_iter_encode_vluint( tausch_iter_t *iter, tsch_size_t val )
 ;
 
 /**
@@ -336,7 +330,7 @@ bool tausch_iter_encode_vluint( tausch_iter_t *iter, size_t val )
  *
  * @return number of bytes it would take
  */
-size_t tausch_vluint_len( size_t val )
+tsch_size_t tausch_vluint_len( tsch_size_t val )
 ;
 
 /**
@@ -391,7 +385,7 @@ bool tausch_iter_go_to_stuffing( tausch_iter_t *iter )
  * @return true if the iteration was successful
  * @return false if the iteration failed
  */
-bool tausch_iter_go_to_tag( tausch_iter_t *iter, size_t tag )
+bool tausch_iter_go_to_tag( tausch_iter_t *iter, tsch_size_t tag )
 ;
 
 /**
@@ -404,7 +398,7 @@ bool tausch_iter_go_to_tag( tausch_iter_t *iter, size_t tag )
  * @param vlen : size_t - the length needed for value
  * @return size_t - number of bytes needed
  */
-size_t tausch_tlv_size( size_t tag, size_t vlen )
+tsch_size_t tausch_tlv_size( tsch_size_t tag, tsch_size_t vlen )
 ;
 
 /**
@@ -414,7 +408,7 @@ size_t tausch_tlv_size( size_t tag, size_t vlen )
  * @param memlen : size_t - the memory space available
  * @return size_t amount of value length available, memlen if not possible at all
  */
-size_t tausch_tlv_vlen( size_t tag, size_t memlen )
+tsch_size_t tausch_tlv_vlen( tsch_size_t tag, tsch_size_t memlen )
 ;
 
 /**
@@ -427,7 +421,7 @@ size_t tausch_tlv_vlen( size_t tag, size_t memlen )
  * @return true if the stuffing was successful.
  * @return false if the stuffing was unsuccessful.
  */
-bool tausch_iter_write_stuffing( tausch_iter_t *iter, size_t len )
+bool tausch_iter_write_stuffing( tausch_iter_t *iter, tsch_size_t len )
 ;
 
 /**
@@ -451,7 +445,7 @@ bool tausch_iter_erase( tausch_iter_t *iter )
  * @return false on failure
  * @return true on success
  */
-bool tausch_iter_write_scope( tausch_iter_t *iter, size_t tag )
+bool tausch_iter_write_scope( tausch_iter_t *iter, tsch_size_t tag )
 ;
 
 /**
@@ -486,7 +480,7 @@ bool tausch_iter_read_bool( tausch_iter_t *iter, bool *value )
  * @return true if the write was successful
  * @return false if the write was unsuccessful
  */
-bool tausch_iter_write_bool( tausch_iter_t *iter, size_t tag, bool *value )
+bool tausch_iter_write_bool( tausch_iter_t *iter, tsch_size_t tag, bool *value )
 ;
 
 /**
@@ -499,7 +493,7 @@ bool tausch_iter_write_bool( tausch_iter_t *iter, size_t tag, bool *value )
  * @return 0 on failure
  * @return number of bytes read out
  */
-size_t tausch_iter_read_typX( tausch_iter_t *iter, uint8_t *value, size_t len )
+tsch_size_t tausch_iter_read_typX( tausch_iter_t *iter, uint8_t *value, tsch_size_t len )
 ;
 
 /**
@@ -514,7 +508,7 @@ size_t tausch_iter_read_typX( tausch_iter_t *iter, uint8_t *value, size_t len )
  * @return 0 on failure
  * @return number of bytes read out
  */
-size_t tausch_iter_read_blob( tausch_iter_t *iter, tausch_blob_t *value )
+tsch_size_t tausch_iter_read_blob( tausch_iter_t *iter, tausch_blob_t *value )
 ;
 
 /**
@@ -531,7 +525,7 @@ size_t tausch_iter_read_blob( tausch_iter_t *iter, tausch_blob_t *value )
  * @return 0 on failure
  * @return number of value bytes written, for null return 1
  */
-size_t tausch_iter_write_typX( tausch_iter_t *iter, size_t tag, uint8_t *value, size_t len )
+tsch_size_t tausch_iter_write_typX( tausch_iter_t *iter, tsch_size_t tag, uint8_t *value, tsch_size_t len )
 ;
 
 /**
@@ -545,7 +539,7 @@ size_t tausch_iter_write_typX( tausch_iter_t *iter, size_t tag, uint8_t *value, 
  * @return 0 on failure
  * @return size written on success
  */
-size_t tausch_iter_write_blob( tausch_iter_t *iter, size_t tag, tausch_blob_t *value )
+tsch_size_t tausch_iter_write_blob( tausch_iter_t *iter, tsch_size_t tag, tausch_blob_t *value )
 ;
 
 /**
@@ -559,13 +553,13 @@ size_t tausch_iter_write_blob( tausch_iter_t *iter, size_t tag, tausch_blob_t *v
  * @return 0 on failure
  * @return size written on success
  */
-size_t tausch_iter_write_utf8( tausch_iter_t *iter, size_t tag, char *value )
+tsch_size_t tausch_iter_write_utf8( tausch_iter_t *iter, tsch_size_t tag, char *value )
 ;
 
 /**
  * Get the length of the TLV value field
  */
-size_t tausch_iter_vlen( tausch_iter_t *iter );
+tsch_size_t tausch_iter_vlen( tausch_iter_t *iter );
 
 /**
  * Function that shall never be implemented => linking must fail

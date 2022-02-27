@@ -4,120 +4,154 @@ TauSchema codec for C language does parse, modify and compose TLV binary message
 
 ## Usage
 
-The low level interface does use Iterators to navigate through the binary. It is possible to overwrite values, append values to
-the end of message, clear the TLV elements by overwriting them with "Stuffing" (a special TLV whose tag id is 0).
+TLV reading and writing does have two level interface. 
 
-```c
-#include "tauschema_codec.h"
+Level 0 interface does read and write raw TLV without any knowledge of the of the data schema. 
+The develper needs to keep track of the TLV structure, data types e.t.c.
+Although the interface does have powerful functions, we do not describe it here.
+You can read about the interface from the header file "tauschema_codec.h".
 
-uint8_t messagebuf[100];
+Level 1 interface does read and write the TLV and keeps track the TLV message against the data schema.
+The functions are more powerful, helping to perform number data type conversions, 
+opening and closing the collections and variadics, verifies that the collection consists of only unique
+tags, e.t.c. The main reason is to protect the application software against data objects that
+are not descirbed by the schema.
 
+
+``` C
+
+#include "tauschema_check.h"
+#include "tauschema_device_info_schema.h"
+
+const char vendor[]= "Tauria Ltd";
+const char serial[]= "abcdefghijk";
+const char device[]= "tauschema-demo-app";
+const uint8_t max_msgsize = 64;
+
+/**
+ * This is server message handler. Client has sent a message
+ * and has requested some data, we need to fill in the values.
+ */
 void handle( uint8_t *buf, size_t len )
 {
-	tausch_iter_t iter, iter_init;
+	// The flat tree schema model is generated into ROM memory.
+	// The tausch_schema_t does track the parts of the file.
+	// Also dynamic loading of the schema is possible.
+	tausch_schema_t devinfo_schema;
+	
+	tausch_schema_init( &devinfo_schema, tauschema_device_info_flatrows, tauschema_device_info_flatsize );
 
-	// Initialize the iterator
+	// The iterator of the flat tree is called flaterator.
+	// At the same time, the flaterator holds an TLV message iterator
+	// for reading and writing the message.
+	tausch_flater_t fl;
 	
-	tausch_iter_init( &iter, buf, len );   // initialize the iterator
-	iter_init = iter;                      // store the value for easy reinitialization
+	tausch_flater_init( &fl, &devinfo_schema, buf, sizeof (buf) );
 	
-	// Decode the iterator to the element that we
-	// are interested of. Search for the root level tag.
-	
-	if( ! tausch_iter_go_to_tag( &iter, MY_TAG ) )
+	tsch_size_t tag_n = 0;
+	while( tausch_flater_tag_n( tausch_flater_next( &fl ) ) != TAUSCH_NAM_DEVICE_INFO_ )
 	{
-		// The tag does not exist
-		return;
-	}
-
-	// Iterator does not change into subscope automatically
-	if( ! tausch_iter_enter_scope( &iter ) )
-	{
-		// The iterator apears not to be a collection
-		return;
-	}
-	
-	if( ! tausch_iter_go_to_tag( &iter, MY_SUBTAG ) )
-	{
-		// The tag does not exist
-		return;
-	}
-	
-	if( tausch_iter_is_null( &iter ) )
-	{
-		// The item is provided but does not contain any data
-		return;
-	}
-	
-	int32_t getval = 0;
-	if( ! tausch_iter_read( &iter, &getval ) )
-	{
-		// the reading of the value failed
-		return;
-	}
-	
-	// If you want to overwrite the value in the message
-	
-	int32_t value = 43;
-	if( ! tausch_iter_write( &iter, MY_SUBTAG, &value ) )
-	{
-		// overwriting failed
-		return;
-	}
-	
-	// To exit from the subscope
-	
-	if( ! tausch_iter_exit_scope( &iter ) )
-	{
-		// Failed to find the end of the scope
-		return;
-	}
-	
-	// To restart looking for another tag
-	
-	iter = iter_init;   // the easy initialization
-	
-	if( ! tausch_iter_go_to_tag( &iter, MY_ANOTHER_TAG ) )
-	{
-		// The tag does not exist
-		return;
+		switch( tausch_flater_tag_n( &fl ) )
+		{
+			case TAUSCH_NAM_DEVICE_INFO_info:
+			{	
+				tausch_flater_t fc = tausch_flater_clone( &fl );
+				while( tausch_flater_tag_n( tausch_flater_next( &fc ) ) != TAUSCH_NAM_DEVICE_INFO_ )
+				{
+					// Reduce source code depth with special handler, also it is repeated handler
+					// for data class slice.
+					// slice : COLLECTION
+					//    orig : UINT-32 = 1
+					//    data : BLOB = 2
+					// : END
+					void slice_txt_handler( tausch_flater_t *fc, char *text )
+					{
+							uint16_t idx = 0;
+							uint16_t len = strnlen( text, max_msgsize );
+							tausch_flater_t fcc = tausch_flater_clone( &fc );
+							
+							tausch_flater_read( &fcc, &idx, TAUSCH_NAM_DEVICE_INFO_orig );
+							if( idx > len ) idx = len;
+							tausch_flater_write( &fcc, TAUSCH_NAM_DEVICE_INFO_data, (char*)&text[idx] );
+					};
+					//
+					// Here fill in the requested data fields
+					//
+					switch( tausch_flater_tag_n( &fc ) )
+					{
+						case TAUSCH_NAM_DEVICE_INFO_msglen:
+							tausch_flater_write( &fc, TAUSCH_NAM_DEVICE_INFO_msglen, &max_msgsize );
+							break;
+						case TAUSCH_NAM_DEVICE_INFO_vendor:
+							slice_txt_handler( &fc, vendor );
+							break;
+						case TAUSCH_NAM_DEVICE_INFO_serial:
+							slice_txt_handler( &fc, serial );
+							break;
+						case TAUSCH_NAM_DEVICE_INFO_name:
+							slice_txt_handler( &fc, device );
+							break;
+						default:
+							// we do not support this field, for avoiding confusion, we will erase it
+							// from the response message. It will be replaced with free memory field
+							// with no particular meaning.
+							tausch_flater_erase( &fc );
+							break;
+					}
+				}
+				break;
+			}
+			default:
+				// we do not support this field, for avoiding confusion, we will erase it
+				// from the response message. It will be replaced with free memory field
+				// with no particular meaning.
+				tausch_flater_erase( &fc );
+				break;
+		}
 	}
 }
-
 ```
 
-The same above in much dense coding style:
+And the client side does first compose the message like this:
 
-```C
-void handle( uint8_t *buf, size_t len )
+``` C
+#include "tauschema_check.h"
+#include "tauschema_device_info_schema.h"
+
+void info_request( uint8_t *buf, size_t len )
 {
-	tausch_iter_t iter, iter_init;
-	bool error = false;
+	tausch_schema_t devinfo_schema;
+	tausch_schema_init( &devinfo_schema, tauschema_device_info_flatrows, tauschema_device_info_flatsize );
 
-	// Initialize the iterator
-	
-	error = error || tausch_iter_init( &iter, buf, len );   // initialize the iterator
-	iter_init = iter;                      // store the value for easy reinitialization
-	
-	error = error || ! tausch_iter_go_to_tag( &iter, MY_TAG );
-	error = error || ! tausch_iter_enter_scope( &iter );
-	error = error || ! tausch_iter_go_to_tag( &iter, MY_SUBTAG );
-	error = error || ! tausch_iter_is_null( &iter );
-	int32_t getval = 0;
-	error = error || ! tausch_iter_read( &iter, &getval );
-	int32_t value = 43;
-	error = error || ! tausch_iter_write( &iter, MY_SUBTAG, &value );
-	error = error || ! tausch_iter_exit_scope( &iter );
-	
-	iter = iter_init;   // the easy initialization
-	
-	error = error || ! tausch_iter_go_to_tag( &iter, MY_ANOTHER_TAG );
-	
-	if( ! error )
+	tausch_flater_t fl;
+	tausch_flater_init( &fl, &devinfo_schema, buf, sizeof (buf) );
+
+	bool ok = TAUSCH_FLATER_WRITE_SCOPE( &fl, TAUSCH_NAM_DEVICE_INFO_info )
 	{
-		// do the response part...
+		ok = ok && (tausch_flater_write( sfl, TAUSCH_NAM_DEVICE_INFO_msglen, (uint32_t*)NULL ) > 0);
+		if( schema_url_is_partial() )
+		{ 
+			ok = ok && TAUSCH_FLATER_WRITE_SCOPE( sfl, TAUSCH_NAM_DEVICE_INFO_schurl )
+			{
+				uint8_t orig = get_missing_schema_url_origin();
+				tausch_blob_t emptyblob = { .buf = NULL, .len = 16 };
+				ok = ok && (tausch_flater_write( sfl, TAUSCH_NAM_DEVICE_INFO_orig, &orig ) > 0);
+				ok = ok && (tausch_flater_write( sfl, TAUSCH_NAM_DEVICE_INFO_data, &emptyblob ) > 0);
+				return ok;
+			}
+			TAUSCH_FLATER_CLOSE_SCOPE;
+		}
+		return ok;
+	}
+	TAUSCH_FLATER_CLOSE_SCOPE;
+	
+	if( !ok )
+	{
+		// while(1); // debug trap
 	}
 }
+
+
 ```
 
 ## LICENSE

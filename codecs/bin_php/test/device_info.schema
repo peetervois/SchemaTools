@@ -1,4 +1,4 @@
-# python3 ../../../schemacheck.py --php device_info.schema > device_info_schema.php
+# 
 #
 # Schema for exchange of the device information and interface Schema.
 # This is the standardized way of TaTLV, the schema here belongs to
@@ -11,9 +11,6 @@ slice : COLLECTION
   #
   orig : UINT-32 = 2  # The origin of the blob from the full data, 
                       #   count as 0 if omitted.
-  size : UINT-16 = 3  # Response total number of bytes in requested
-                      #   elements. If size is not requested then
-                      #   it is not returned
   data : BLOB = 1     # The data slice returned. On request the
                       #   value field is stuffed with zeroes.
                       #   On response it is filled with data.

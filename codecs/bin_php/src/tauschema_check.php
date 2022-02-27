@@ -64,9 +64,9 @@ class Flaterator
 
     /**
      * Iterate in flat tree to the ID in the subscope.
-     * The first subscope is
-     * the root scope. In case it stops on collection or variadic, it will
-     * enter into that scope on the beginning of the next call of go_to.
+     * The first subscope is the root scope. In case it stops on collection
+     * or variadic, it will enter into that scope on the beginning of the next
+     * call of go_to.
      *
      * The argument can be relational from current position:
      * "name1.name2.name3"
@@ -272,7 +272,8 @@ class Flaterator
     }
 
     /**
-     * Read the value of current item.
+     * Read the value based of current item. It does not change furrent flaterator
+     * and does create a copy before it does advance to the id field.
      *
      * Note that the scope items will return true and end of scope false.
      * Blob and utf8 will return PHP strings.

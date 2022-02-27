@@ -35,7 +35,7 @@ import posixpath
 import argparse
 import sys
 from builtins import isinstance
-
+import os
 
 
 class SchemaItem:
@@ -110,6 +110,22 @@ class SchemaFactory:
     """
     The Schema root item
     """
+    
+    type_enum = {
+        ''          : 0,    'BOOL'      : 1,
+        'UINT'      : 2,    'UINT-8'    : 3,    'UINT-16'   : 4,    'UINT-32'   : 5,
+        'UINT-64'   : 6,
+        'SINT'      : 7,    'SINT-8'    : 8,    'SINT-16'   : 9,    'SINT-32'   : 10,
+        'SINT-64'   : 11,
+        'FLOAT'     : 12,   'FLOAT-32'  : 13,   'FLOAT-64'  : 14,
+        'UTF-8'     : 15,   'BLOB'      : 16,
+        'COLLECTION': 17,   'VARIADIC'  : 18
+    }
+    """
+    The enumerator of different primitive types
+    """
+    
+
     
     def __init__(self, opened : list = None):
         self.root = SchemaItem()
@@ -273,9 +289,9 @@ class SchemaFactory:
             self._cur_item.type_scope = self._cur_item.derived.type_scope
             return
         primitives = ["BOOL", "SINT", "UINT", "UTF8","BLOB","FLOAT",
-                      "SINT-8","SINT-16","SINT-32","SINT-64","SINT-128",
-                      "UINT-8","UINT-16","UINT-32","UINT-64","UINT-128",
-                      "FLOAT-32","FLOAT-64","FLOAT-128"]
+                      "SINT-8","SINT-16","SINT-32","SINT-64",
+                      "UINT-8","UINT-16","UINT-32","UINT-64",
+                      "FLOAT-32","FLOAT-64"]
         primitive = None
         for i in primitives :
             for j in typ :
@@ -356,6 +372,7 @@ class SchemaFactory:
                         if k in scop.subitems :
                             raise BaseException( "error: name '{}' from include is not unique !".format( k ) )
                         for ik, i in scop.subitems.items() :
+                            _ = ik;
                             if v.item == i.item and v.item > 0 :
                                 raise BaseException( "error: item '{}' of '{}' from include is not unique !".format(v.item,k) )
                         scop.subitems[k] = v
@@ -426,17 +443,17 @@ class SchemaFactory:
                     ex( "error: key '{}' must be '{}' in scope '{}'".format(key,inst.type,schscope.name))
                     return False
                 return True
-            if inst.type in ['SINT','SINT-8', 'SINT-16', 'SINT-32', 'SINT-64', 'SINT-128'] :
+            if inst.type in ['SINT','SINT-8', 'SINT-16', 'SINT-32', 'SINT-64'] :
                 if (not isinstance( val, int ) and not isinstance(val,float)) or val != int( val ):
                     ex( "error: key '{}' must be '{}' in scope '{}'".format(key,inst.type,schscope.name))
                     return False
                 return True
-            if inst.type in ['UINT','UINT-8', 'UINT-16', 'UINT-32', 'UINT-64', 'UINT-128'] :
+            if inst.type in ['UINT','UINT-8', 'UINT-16', 'UINT-32', 'UINT-64'] :
                 if (not isinstance( val, int ) and not isinstance( val, float )) or val < 0 or  val != int( val ):
                     ex( "error: key '{}' must be '{}' in scope '{}'".format(key,inst.type,schscope.name))
                     return False
                 return True
-            if inst.type in ['FLOAT', 'FLOAT-32', 'FLOAT-64', 'FLOAT-128'] :
+            if inst.type in ['FLOAT', 'FLOAT-32', 'FLOAT-64'] :
                 if not isinstance( val, int ) and not isinstance( val, float ) :
                     ex( "error: key '{}' must be '{}' in scope '{}'".format(key,inst.type,schscope.name))
                     return False
@@ -557,6 +574,7 @@ class SchemaFactory:
                 # the item's subitems have been already scanned or is in the middle of scanning
                 return
             for k,v in itm.subitems.items():
+                _ = k;
                 if v.item < 1 :
                     # we take only existing items
                     continue
@@ -589,7 +607,7 @@ class SchemaFactory:
         """
         Produce PHP flat-tree source file section as str that contains the flat tree.
         """
-        rv = '<?php\n\n'
+        rv = "\n/* produced with command:\n $ "+ " ".join(sys.argv) + "\n*/\n\n"
         rv += 'namespace tauschema_flattree;\n\n'
         rv += 'class ' + self._schema_name + '\n{\n'
         rv += '  public static $schema=array('
@@ -606,9 +624,278 @@ class SchemaFactory:
             rv += record + ')'
             prep = ',\n'
             pass
-        rv += "\n  );\n}\n\n"
-        rv += "?>"
+        rv += "\n  );\n}\n"
         
+        return rv
+    
+    def vluint_len(self, val : int) -> int:
+        """
+        Calculates number of bytes needed to represent VLUINT(val)
+        """
+        rv : int = 1
+        i : int = 0x80
+        while (i<=val) and (i>0) :
+            i <<= 7
+            rv += 1
+            pass
+        return rv
+    
+    def vluint_encode(self, val : int ) -> list():
+        """
+        Encode the val as series of byte values and return the list
+        """
+        rv = list()
+        while 0x80 <= val :
+            rv.append( (val & 0x7f) + 0x80 )
+            val >>= 7
+            pass
+        rv.append( val & 0x7f )
+        return rv
+    
+    def compile_flattlv(self, option ):
+        """
+        Produce C flat-tree rows_blob.
+        """
+        do_desc : bool = not ((option == 'no-desc') or (option == 'no-name'))
+        do_name : bool = not (option == 'no-name')
+        
+        tree = self.generate_flat_tree()
+        names = {'':0} # key, offset index
+        names_idx = 0  # next index for new item into dictionary
+        descs = {'':0} # key, offset index
+        descs_idx = 0  # next index for new item into dictionary
+        full_tlv = list()
+        #nsort = list()
+        #dsort = list()
+        hist = {} #character histogram
+        
+        # produce the information once
+        if getattr(self.root,'_flattlv',None) == None :
+            self.root._flattlv = { 'names': names, 'descs' : descs, 'tlv' : full_tlv, 
+                                  'tree':tree, 'nsort':list(), 'dsort':list(), 
+                                  'hist':hist, 'maxtag':0 }
+            # prepare the tree
+            for i in tree:
+                if '_tlv' not in i :
+                    i['_tlv'] = { 'sz':0, 'of':0, 'tag':i['item'], 'sub':0, 'nxt':0, 
+                                 'typ':self.type_enum[i['type']], 'nam':0, 'dsc':0 }
+                    pass
+                # check if the name is already in tree
+                if i['name'] not in names:
+                    names[i['name']] = 0
+                # check if the desc is already in tree
+                if i['desc'] not in descs:
+                    descs[i['desc']] = 0
+                # look for maximum tag value
+                if self.root._flattlv['maxtag'] < i['item'] :
+                    self.root._flattlv['maxtag'] = i['item']
+                pass
+            pass
+        else:
+            return self.root._flattlv
+ 
+        # organize the strings for binary search
+        nsort = sorted(names)
+        self.root._flattlv['nsort'] = nsort
+        for i in self.root._flattlv['nsort'] :
+            names[i] = names_idx;
+            names_idx += 1;
+            if do_name:
+                names_idx += len(i.encode("utf-8"))
+                for c in i.encode("utf-8"):
+                    if c not in hist:
+                        hist[c] = 0
+                    hist[c] += 1
+                if 0 not in hist :
+                    hist[0] = 0
+                hist[0] += 1
+            pass
+        dsort = sorted(descs)
+        self.root._flattlv['dsort'] = dsort
+        for i in self.root._flattlv['dsort'] :
+            descs[i] = descs_idx;
+            descs_idx += 1;
+            if do_desc:
+                descs_idx += len(i.encode("utf-8"))
+                for c in i.encode("utf-8"):
+                    if c not in hist:
+                        hist[c] = 0
+                    hist[c] += 1
+                if 0 not in hist :
+                    hist[0] = 0
+                hist[0] += 1
+            pass
+
+        #for i in sorted(hist, key=hist.get):
+        #    print( "hist " +str(i)+" "+str(hist[i]) )
+    
+        # calculate the row lengths in bytes for the tree
+        # and update the index references of the table
+        keep_going : bool = True
+        while keep_going :
+            keep_going = False
+            row_offset = 0 # the flat tree row offset
+
+            for i in tree:
+                rl = 0;
+                t = i['_tlv']
+                # perform one time calculations
+                if t['sz'] == 0 :
+                    rl += self.vluint_len(t['tag'])
+                    rl += self.vluint_len(t['typ'])
+                    t['nam'] = names[i['name']]
+                    rl += self.vluint_len(t['nam'])
+                    if do_desc :
+                        t['dsc'] = descs[i['desc']]
+                        rl += self.vluint_len(t['dsc'])
+                        pass
+                    t['sz'] = rl # sz contains nonchanging part of the length
+                    pass
+                else:
+                    rl += t['sz']
+                    pass
+                rl += self.vluint_len(t['sub'])
+                rl += self.vluint_len(t['nxt'])
+                # check if we have changes
+                if t['of'] != row_offset :
+                    keep_going = True
+                    t['of'] = row_offset
+                    # update the offsets in entire tree
+                    for R in tree :
+                        if R['sub'] == i['_idx'] :
+                            R['_tlv']['sub'] = t['of']
+                            pass
+                        if R['next'] == i['_idx'] :
+                            R['_tlv']['nxt'] = t['of']
+                    pass
+                row_offset += rl
+            pass
+        
+        """
+        for i in tree :
+            rv += " " + str(i['_idx']) + "[" + str(i['_tlv']['of']) + "]"
+            rv += "  tag:" + str(i['_tlv']['tag'])
+            rv += "  nam:" + str(i['_tlv']['nam'])
+            rv += "  typ:" + str(i['_tlv']['typ'])
+            rv += "  sub:" + str(i['_tlv']['sub'])
+            rv += "  nxt:" + str(i['_tlv']['nxt'])
+            rv += "  dsc:" + str(i['_tlv']['dsc'])
+            rv += "\n"
+            pass
+
+        rv += " name strings " + str(names_idx) +"\n"
+        rv += " descriptions " + str(descs_idx) +"\n"
+        """
+        
+        rows_blob = list()
+        for i in tree :
+            t = i['_tlv']
+            rows_blob += self.vluint_encode(t['tag'])
+            rows_blob += self.vluint_encode(t['nam'])
+            rows_blob += self.vluint_encode(t['typ'])
+            rows_blob += self.vluint_encode(t['sub'])
+            rows_blob += self.vluint_encode(t['nxt'])
+            if do_desc :
+                rows_blob += self.vluint_encode(t['dsc'])
+        
+        full_tlv += self.vluint_encode((3<<2)+2)
+        full_tlv += self.vluint_encode(len(rows_blob))
+        full_tlv += rows_blob
+        
+        if do_name :
+            names_blob = list()
+            for i in nsort :
+                names_blob += list( i.encode('utf-8') )
+                names_blob += [ 0 ]
+                
+            full_tlv += self.vluint_encode((1<<2)+2)
+            full_tlv += self.vluint_encode(len(names_blob))
+            full_tlv += names_blob
+        
+        if do_desc :
+            desc_blob = list()
+            for i in dsort :
+                desc_blob += list( i.encode('utf-8') )
+                desc_blob += [ 0 ]
+                
+            full_tlv += self.vluint_encode((2<<2)+2)
+            full_tlv += self.vluint_encode(len(desc_blob))
+            full_tlv += desc_blob
+        
+        full_tlv += self.vluint_encode((1<<2)+3)
+        
+        return self.root._flattlv
+        
+    def produce_c_flattree(self, options ):
+        """
+        Produce the .c file for C language
+        """
+        flattlv = self.compile_flattlv(options)
+        full_tlv = flattlv['tlv']
+        
+        rv = "\n/* produced with command:\n $ "+ " ".join(sys.argv) + "\n*/\n\n"
+        rv += "#include \"tauschema_check.h\"\n\n"
+        rv += "\nconst uint8_t tauschema_"+factory._schema_name + "_flatrows[] = {\n"
+        
+        N = 1
+        T = 0
+        C = " "
+        hlp = "// "
+        for i in full_tlv :
+            hc = "" + chr(i)
+            if not hc.isprintable() :
+                hc = "."
+            hlp += hc
+            rv += C + str(i) +"\t"
+            if (T == len(full_tlv)-1):
+                while( N < 16):
+                    hlp = "\t" + hlp
+                    N += 1
+            if (N >= 16):
+                rv += hlp + "\n"
+                hlp = "// "
+                N = 0
+                pass
+            C = ","
+            N += 1
+            T += 1
+            pass
+        rv += "\n"
+        
+        rv += "};\n"
+        rv += "const tsch_size_t tauschema_"+factory._schema_name + "_flatsize = sizeof( "
+        rv += "tauschema_"+factory._schema_name + "_flatrows ); // "+ str( len(full_tlv) ) +"\n"
+        rv += "const tsch_size_t tauschema_"+factory._schema_name + "_maxtag = "+ str( flattlv['maxtag']*4 ) + ";\n\n"
+        return rv
+    
+    def produce_h_flattree(self, options):
+        """
+        produce the .h file for C language
+        """
+        flattlv = self.compile_flattlv(options)
+        names = flattlv['names']
+        tree = flattlv['tree']
+        
+        rv = "\n/* produced with command:\n $ "+ " ".join(sys.argv) + "\n*/\n\n"
+        rv += "#ifndef _TAUSCHEMA_"+factory._schema_name.upper()+"_H_\n"
+        rv += "#define _TAUSCHEMA_"+factory._schema_name.upper()+"_H_\n\n"
+        rv += "#include \"tauschema_codec.h\"\n\n"
+        rv += "   extern const uint8_t tauschema_" + factory._schema_name + "_flatrows[];\n"
+        rv += "   extern const tsch_size_t tauschema_" + factory._schema_name + "_flatsize;\n\n"
+        rv += "   extern const tsch_size_t tauschema_" + factory._schema_name + "_maxtag;\n\n"
+        
+        for k in flattlv['nsort'] :
+            rv += " #define TAUSCH_NAM_" +factory._schema_name.upper()+"_"+k+"\t("+str(names[k])+")"
+            rv += "\n"
+        
+        # Can not export keys as the keys are not unique
+        #
+        #rv += "\n"
+        # 
+        #for k in tree :
+        #    rv += " #define TAUSCH_TAG_" +factory._schema_name.upper()+"_"+k["name"]+"\t("+str(k["item"])+")\n"
+
+        rv += "\n#endif // _"+factory._schema_name.upper()+"_H_\n"
         return rv
     
     pass
@@ -616,18 +903,68 @@ class SchemaFactory:
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Validate and process Tauria\'s schema files.')
-    parser.add_argument('--php', action=argparse.BooleanOptionalAction, help="Wether to print out PHP flat tree")
+    parser.add_argument('--php', action="store_true", help="Wether to print out PHP flat tree.")
+    parser.add_argument('--C', choices=['full','no-desc','no-name','off'], default='off', 
+                        help="Wether to print out C flat tree."
+                        + " Option 'full' does produce full flat tree data."
+                        + " Option 'no-desc' discards description strings."
+                        + " Option 'no-name' discarrds also names."
+                        + " Default option 'off' does not produce C output at all.")
+    parser.add_argument('--out-path', default=False, help="The path where to produce the output files.")
     parser.add_argument('fname', type = str, nargs=1, help="The file name to start the schema parsing from.")
     args = parser.parse_args()
     
+    commandline = " ".join(sys.argv)
+    
     factory = SchemaFactory()
     
-    factory.loadfile( args.fname[0] )
+    if args.out_path:
+        cwd = os.getcwd()
+        od = cwd +"/"+ args.out_path
+        print(" Outputing files to "+ od )
     
     if args.php :
-        phptr = factory.produce_php_flattree()
-        print( phptr )
-    else:        
+        print( "<?php\n/*\n  messages while parsing the schema:\n")
+        factory.loadfile( args.fname[0] )
+        info = "<?php\n"
+        info += factory.produce_php_flattree()
+        info +="\n?>\n"
+        print( "*/\n")
+        print( "\n?>\n" )
+        # TODO: print out some license info too
+        if not args.out_path :
+            print( info )
+        else:
+            phpfile = od + "tauschema_" + factory._schema_name + "_schema.php"
+            with open( phpfile, 'w') as f:
+                f.write(info)
+                f.close()
+                print( "wrote "+ phpfile )
+    elif args.C != 'off' :
+        print("/*\n  messages while parsing the schema:\n")
+        factory.loadfile( args.fname[0] )
+        source = factory.produce_c_flattree( args.C )
+        header = factory.produce_h_flattree( args.C )
+        print( "*/")
+        if not args.out_path :
+            print("// ----------------- SOURCE_FILE ----------------- ")
+            print( source )
+            print("// ----------------- HEADER_FILE ----------------- ")
+            print( header )
+        else:
+            cfile = od + "tauschema_" + factory._schema_name + "_schema.c"
+            with open( cfile, 'w') as f:
+                f.write(source)
+                f.close()
+                print( "wrote "+ cfile )
+            hfile = od + "tauschema_" + factory._schema_name + "_schema.h"
+            with open( hfile, 'w') as f:
+                f.write(header)
+                f.close()
+                print( "wrote "+ hfile )
+    else:
+        print( 'Verifying the schema consistency' )
+        factory.loadfile( args.fname[0] )
         print( 'done' )
         
     

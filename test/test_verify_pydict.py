@@ -52,7 +52,7 @@ if __name__ == "__main__":
     },{
         'dc':"test of any kind of SINT and SINT-X",
         'rv':1,
-        'sc':{'sints':{'sint':-1,'sint8':1.0,'sint16':34,'sint32':-22,'sint64':66,'sint128':-23}}
+        'sc':{'sints':{'sint':-1,'sint8':1.0,'sint16':34,'sint32':-22,'sint64':66}}
     },{
         'dc':"noninteger floating value must be catched ",
         'rv':-1,
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     },{
         'dc':"test of any kind of UINT and UINT-X",
         'rv':1,
-        'sc':{'uints':{'uint':1,'uint8':1.0,'uint16':34,'uint32':22,'uint64':66,'uint128':0}}
+        'sc':{'uints':{'uint':1,'uint8':1.0,'uint16':34,'uint32':22,'uint64':66}}
     },{
         'dc':"noninteger floating value must be catched ",
         'rv':-1,
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     },{
         'dc':"test of any kind of FLOAT and FLOAT-X",
         'rv':1,
-        'sc':{'floats':{'float':1,'float32':22,'float64':66.3,'float128':1.34e5}}
+        'sc':{'floats':{'float':1,'float32':22,'float64':66.3}}
     },{
         'dc':"string value must be catched ",
         'rv':-1,

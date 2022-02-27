@@ -198,15 +198,15 @@ Primitive types are types that map to computer memory model.
 
 **BOOL** Boolean type that maps to binary information [False,True] or [0,1].
 
-**UINT-8** Unsigned integer 8 bits. The bit lengths may vary: 8, 16, 32, 64, 128. For example **UINT-32**.
+**UINT-8** Unsigned integer 8 bits. The bit lengths may vary: 8, 16, 32, 64. For example **UINT-32**.
 
 **UINT** Unsigned integer with undefined length, concrete parser implementation shall use something big enough.
 
-**SINT-8** Signed integer 8 bits.  The bit lengths may vary: 8, 16, 32, 64, 128. For example **SINT-32**.
+**SINT-8** Signed integer 8 bits.  The bit lengths may vary: 8, 16, 32, 64. For example **SINT-32**.
 
 **SINT** Signed integer with undefined length, concrete parser implementation shall use something big enough.
 
-**FLOAT-32** IEEE floating point number, The bit lengths may vary: 32, 64, 128. For example **FLOAT-64**
+**FLOAT-32** IEEE floating point number, The bit lengths may vary: 32, 64. For example **FLOAT-64**
 
 **FLOAT** Alias for **FLOAT-64**.
 

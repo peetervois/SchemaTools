@@ -8,6 +8,7 @@ size_t count_errors = 0;
 int main( void )
 {
     test_buf();
+    test_flater();
 
     printf("\n\n");
     printf("Number of tests performed: %ld \n", count_tests );

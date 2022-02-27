@@ -52,7 +52,7 @@ void tausch_format_buf( uint8_t *buf )
  * @arg size : size_t - amount of data in the buffer
  * @return tausch_iter_t* - pointer to the iter
  */
-tausch_iter_t* tausch_iter_init( tausch_iter_t *iter, uint8_t *buf, size_t size )
+tausch_iter_t* tausch_iter_init( tausch_iter_t *iter, uint8_t *buf, tsch_size_t size )
 {
     tausch_iter_t tm = TAUSCH_ITER_INIT( buf, size );
     *iter = tm;
@@ -67,10 +67,10 @@ tausch_iter_t* tausch_iter_init( tausch_iter_t *iter, uint8_t *buf, size_t size 
  */
 tausch_iter_t* tausch_iter_reset( tausch_iter_t *iter )
 {
-    iter->idx = iter->sbuf;
-    iter->next = iter->sbuf;
-    iter->val = iter->sbuf;
-    iter->tag = ~(size_t)0;
+    iter->idx = 0;
+    iter->next = 0;
+    iter->val = 0;
+    iter->tag = TSCH_NOTHING;
     iter->vlen = 0;
     iter->scope = 0;
     iter->lc = 0;
@@ -85,7 +85,7 @@ tausch_iter_t* tausch_iter_reset( tausch_iter_t *iter )
  */
 bool tausch_iter_is_eof( tausch_iter_t *iter )
 {
-    return ( (iter->lc == 3) && (iter->tag > 0) && (iter->tag != ~0));
+    return ( (iter->lc == 3) && (iter->tag > 0) && (iter->tag != TSCH_NOTHING));
 }
 
 /**
@@ -107,7 +107,7 @@ bool tausch_iter_is_end( tausch_iter_t *iter )
  */
 tausch_iter_t* tausch_iter_format( tausch_iter_t *iter )
 {
-    *iter->next = 7;
+    iter->buf[iter->next] = 7;
     return iter;
 }
 
@@ -119,13 +119,13 @@ tausch_iter_t* tausch_iter_format( tausch_iter_t *iter )
 bool tausch_iter_is_ok( tausch_iter_t *iter )
 {
     bool notok = false;
-    notok |= iter->ebuf == NULL;   // there is no buffer pointed
-    notok |= iter->idx == NULL;   // idx is pointing to nothing
+    notok |= iter->ebuf == 0;   // there is no buffer pointed
+    notok |= iter->idx == TSCH_NOTHING;   // idx is pointing to nothing
     notok |= iter->idx >= iter->ebuf;   // index is out of buffer or end of buffer
-    notok |= iter->next == NULL;   // next is pointing to nothing
+    notok |= iter->next == TSCH_NOTHING;   // next is pointing to nothing
     notok |= iter->next > iter->ebuf;   // next is pointing out of buffer
     notok |= (iter->next == iter->idx) && (iter->val != iter->next);   // iter->val has incorrect value
-    notok |= iter->sbuf == NULL;   // there is no buffer pointed
+    notok |= iter->buf == NULL;   // there is no buffer pointed
     return !notok;
 }
 
@@ -145,7 +145,7 @@ bool tausch_iter_is_complete( tausch_iter_t *iter )
  */
 bool tausch_iter_is_null( tausch_iter_t *iter )
 {
-    return iter->val == NULL;
+    return iter->val == TSCH_NOTHING;
 }
 
 /**
@@ -162,10 +162,11 @@ bool tausch_iter_is_clean( tausch_iter_t *iter )
 /**
  * @return size of the stuffing when the iter is stuffing, otherwise 0
  */
-size_t tausch_iter_is_stuffing( tausch_iter_t *iter )
+tsch_size_t tausch_iter_is_stuffing( tausch_iter_t *iter )
 {
     if( !tausch_iter_is_ok( iter ) ) return 0;
     if( iter->tag != 0 ) return 0;
+    if( (iter->lc & 1) == 1 ) return 0; // it is special collection
     return iter->next - iter->idx;
 }
 
@@ -186,9 +187,9 @@ bool tausch_iter_is_scope( tausch_iter_t *iter )
  * @param iter : tausch_iter_t*
  * @return size_t
  */
-size_t tausch_iter_buff_free( tausch_iter_t *iter )
+tsch_size_t tausch_iter_buff_free( tausch_iter_t *iter )
 {
-    if( iter->ebuf == NULL ) return 0;
+    if( iter->ebuf == 0 ) return 0;
     tausch_iter_t ti = *iter;
     while( (!tausch_iter_is_eof( &ti )) && tausch_iter_is_ok( &ti ) )
     {
@@ -206,33 +207,38 @@ size_t tausch_iter_buff_free( tausch_iter_t *iter )
  *
  * @arg iter - the iterator from where to read
  *
- * @return the decoded tag value, or ~0 (all bits set) on failure
+ * @return the decoded tag value, or TSCH_NOTHING (all bits set) on failure
  *
  */
-size_t tausch_iter_decode_vluint( tausch_iter_t *iter )
+tsch_size_t tausch_iter_decode_vluint( tausch_iter_t *iter )
 {
-    size_t rv = 0;
-    size_t x = 0;
-    uint32_t s = 0;
-    if( iter->next != iter->val ) return ~0;
+    tsch_size_t rv = 0;
+    uint8_t x = 0;
+    uint8_t s = 0;
+    if( iter->next != iter->val ) return TSCH_NOTHING;
     do
     {
-        if( !tausch_iter_is_ok( iter ) ) return ~0;
+        if( !tausch_iter_is_ok( iter ) ) return TSCH_NOTHING;
         if( iter->next >= iter->ebuf )
         {
-            iter->ebuf = NULL;
-            return ~0;
+            iter->ebuf = 0;
+            return TSCH_NOTHING;
         }
-        x = (size_t) (*iter->next);
-        if( (s + 1) < (sizeof(size_t) * 8) )
+        x = iter->buf[iter->next];
+        if( (s + 1) < (sizeof(tsch_size_t) * 8) )
         {
             // we do not support bigger numbers for vluint
-            rv |= (x & 0x7f) << s;
+            rv |= ((tsch_size_t)x & 0x7f) << s;
+            // FIXME: check also tag overflow, some bits may flow over.
             s += 7;
+        }
+        else
+        {
+            rv = TSCH_NOTHING;
         }
         iter->next += 1;
     }
-    while( ( (x & 0x80) == 0x80) && (s < (sizeof(size_t) * 8)) );
+    while( (x & 0x80) == 0x80 );
     iter->val = iter->next;
     return rv;
 }
@@ -246,9 +252,9 @@ size_t tausch_iter_decode_vluint( tausch_iter_t *iter )
  * @return true on success
  * @return false on failure
  */
-bool tausch_iter_encode_vluint( tausch_iter_t *iter, size_t val )
+bool tausch_iter_encode_vluint( tausch_iter_t *iter, tsch_size_t val )
 {
-    size_t x = val;
+    tsch_size_t x = val;
     uint8_t b = 0;
     if( tausch_iter_is_complete( iter ) ) return false;   // the iterator is complete already
     do
@@ -256,7 +262,7 @@ bool tausch_iter_encode_vluint( tausch_iter_t *iter, size_t val )
         if( !tausch_iter_is_ok( iter ) ) return false;
         b = (x & (~0x7f)) ? 0x80 : 0x00;
         b |= x & 0x7f;
-        * (iter->next++) = b;
+        iter->buf[iter->next++] = b;
         x >>= 7;
     }
     while( x );
@@ -271,25 +277,16 @@ bool tausch_iter_encode_vluint( tausch_iter_t *iter, size_t val )
  *
  * @return number of bytes it would take
  */
-size_t tausch_vluint_len( size_t val )
+tsch_size_t tausch_vluint_len( tsch_size_t val )
 {
-    unsigned int *x = (unsigned int*)&val;
-    size_t rv = 0;   // now: rv is number of msbits zeroed
-    for( int i = (sizeof(size_t) / sizeof(unsigned int) - 1); i >= 0; i-- )
+    tsch_size_t rv = 0;   // now: rv is number of msbits zeroed
+    do
     {
-        if( x[i] == 0 )
-        {
-            rv += sizeof(unsigned int) << 3;
-        }
-        else
-        {
-            rv += __builtin_clz( x[i] );
-            break;
-        }
+        rv ++;
+        val >>= 7;
     }
-    rv = (sizeof(size_t) << 3) - rv;   // now: rv is number of significant bits
-    rv = (rv + 6) / 7;   // now: rv is number of bytes
-    return rv > 0 ? rv : 1;
+    while( val > 0 );
+    return rv;
 }
 
 /**
@@ -304,8 +301,8 @@ size_t tausch_vluint_len( size_t val )
  */
 bool tausch_iter_next( tausch_iter_t *iter )
 {
-    size_t tag = 0;
-    size_t len = 0;
+    tsch_size_t tag = 0;
+    tsch_size_t len = 0;
     uint16_t sco = iter->scope;
     bool rv = true;
 
@@ -364,10 +361,9 @@ bool tausch_iter_next( tausch_iter_t *iter )
             // end of scope
             // we stay at the END marker
             // when tag part of the END is not 0, then it is also end of file
-            iter->vlen = 0;
             iter->tag = iter->tag != 0 ? 1 : 0;
             iter->vlen = 0;
-            iter->val = NULL;
+            iter->val = TSCH_NOTHING;
             rv = sco < iter->scope;
             continue;   // the while cycle handles the exit
         }
@@ -391,8 +387,8 @@ bool tausch_iter_next( tausch_iter_t *iter )
                 ( (iter->next + len) > iter->ebuf) )
             {
                 // the buffer overflow is happening
-                iter->val = NULL;
-                iter->ebuf = NULL;
+                iter->val = TSCH_NOTHING;
+                iter->ebuf = 0;
                 return false;   // the iterator became invalid
             }
             iter->val = iter->next;
@@ -401,7 +397,7 @@ bool tausch_iter_next( tausch_iter_t *iter )
         else
         {
             // there value is NULL
-            iter->val = NULL;
+            iter->val = TSCH_NOTHING;
         }
     }
     while( rv && (sco < iter->scope) );
@@ -458,7 +454,7 @@ bool tausch_iter_exit_scope( tausch_iter_t *iter )
     {
         // eos at scope 0 is disabled
         rv = false;
-        iter->ebuf = NULL;   // the iterator is very broken
+        iter->ebuf = 0;   // the iterator is very broken
     }
     else if( tausch_iter_is_end( iter ) )
     {
@@ -512,7 +508,7 @@ bool tausch_iter_go_to_stuffing( tausch_iter_t *iter )
  * @return true if the iteration was successful
  * @return false if the iteration failed
  */
-bool tausch_iter_go_to_tag( tausch_iter_t *iter, size_t tag )
+bool tausch_iter_go_to_tag( tausch_iter_t *iter, tsch_size_t tag )
 {
     while( tausch_iter_next( iter ) )
     {
@@ -534,9 +530,9 @@ bool tausch_iter_go_to_tag( tausch_iter_t *iter, size_t tag )
  * @param vlen : size_t - the length needed for value
  * @return size_t - number of bytes needed
  */
-size_t tausch_tlv_size( size_t tag, size_t vlen )
+tsch_size_t tausch_tlv_size( tsch_size_t tag, tsch_size_t vlen )
 {
-    size_t rv = vlen;
+    tsch_size_t rv = vlen;
     rv += tausch_vluint_len( tag << 2 );
     rv += vlen > 0 ? tausch_vluint_len( vlen ) : 0;
     return rv;
@@ -549,13 +545,13 @@ size_t tausch_tlv_size( size_t tag, size_t vlen )
  * @param memlen : size_t - the memory space available
  * @return size_t amount of value length available, memlen if not possible at all
  */
-size_t tausch_tlv_vlen( size_t tag, size_t memlen )
+tsch_size_t tausch_tlv_vlen( tsch_size_t tag, tsch_size_t memlen )
 {
-    size_t rv = 0;
-    size_t tl = tausch_vluint_len( tag << 2 );
+    tsch_size_t rv = 0;
+    tsch_size_t tl = tausch_vluint_len( tag << 2 );
     if( tl > memlen ) return memlen;
     if( tl == memlen ) return 0;
-    size_t lv = 0;
+    tsch_size_t lv = 0;
 
     do
     {
@@ -588,23 +584,23 @@ size_t tausch_tlv_vlen( size_t tag, size_t memlen )
  * @param exact : bool - how to fit into memory,
  * @return size_t - amount of bytes written. 0 on error.
  */
-static size_t tausch_iter_overwrite( tausch_iter_t *iter, size_t tag, uint8_t *buf, size_t len, bool exact )
+static tsch_size_t tausch_iter_overwrite( tausch_iter_t *iter, tsch_size_t tag, uint8_t *buf, tsch_size_t len, bool exact )
 {
     if( !tausch_iter_is_ok( iter ) ) return 0;
     if( tausch_iter_is_scope( iter ) ) return 0;
 
     tausch_iter_t tm = *iter;   // temporary iterator for rollback
 
-    size_t tlvlen = tausch_tlv_size( tag, len );
+    tsch_size_t tlvlen = tausch_tlv_size( tag, len );
     if( tausch_iter_is_eof( iter ) )
     {
         // iterator is at the eof, allocate enough memory
-        if( ( (iter->idx + tlvlen + 1) >= iter->ebuf) || ( (iter->idx + tlvlen + 1) < iter->idx) )
+        if( ( (iter->idx + tlvlen + 1) > iter->ebuf) || ( (iter->idx + tlvlen + 1) < iter->idx) )
         {
             // buffer overflow would happen
             if( (!exact) && ( (iter->ebuf - 1) > iter->idx) )
             {
-                size_t memlen = iter->ebuf - iter->idx - 1;
+                tsch_size_t memlen = iter->ebuf - iter->idx - 1;
                 len = tausch_tlv_vlen( tag, memlen );
                 if( len >= memlen ) return 0;   // was not able to find smaller len
                 tlvlen = tausch_tlv_size( tag, len );
@@ -622,7 +618,7 @@ static size_t tausch_iter_overwrite( tausch_iter_t *iter, size_t tag, uint8_t *b
         // if the iterator is at end then we do not overwrite
         return 0;
     }
-    size_t memlen = iter->next - iter->idx;   // now, find the available memory based on iterator
+    tsch_size_t memlen = iter->next - iter->idx;   // now, find the available memory based on iterator
     if( exact && (tlvlen != memlen) )
     {
         *iter = tm;   // we can rollback here
@@ -657,16 +653,16 @@ static size_t tausch_iter_overwrite( tausch_iter_t *iter, size_t tag, uint8_t *b
         ok = ok && tausch_iter_encode_vluint( iter, len );
         if( !ok )
         {
-            iter->ebuf = NULL;   // we have messed up the message
+            iter->ebuf = 0;   // we have messed up the message
             return 0;
         }
         if( buf == NULL )
         {
-            memset( iter->next, 0x00, len );
+            memset( &iter->buf[iter->next], 0x00, len );
         }
         else
         {
-            memcpy( iter->next, buf, len );
+            memcpy( &iter->buf[iter->next], buf, len );
         }
         iter->next += len;
     }
@@ -675,7 +671,7 @@ static size_t tausch_iter_overwrite( tausch_iter_t *iter, size_t tag, uint8_t *b
     if( ok && (tlvlen < memlen) )
     {
         iter->idx = iter->next;
-        iter->val = NULL;
+        iter->val = TSCH_NOTHING;
         iter->next += memlen - tlvlen;
         iter->lc = 0;
 
@@ -692,7 +688,7 @@ static size_t tausch_iter_overwrite( tausch_iter_t *iter, size_t tag, uint8_t *b
         if( tausch_iter_is_eof(&si) )
         {
             // si idx is on eof, we move the eof to the beginning of iter
-            tausch_format_buf(iter->idx);
+            tausch_format_buf(&iter->buf[iter->idx]);
             memlen = iter->idx - tm.idx;
         }
         else if( si.idx > iter->next )
@@ -709,7 +705,7 @@ static size_t tausch_iter_overwrite( tausch_iter_t *iter, size_t tag, uint8_t *b
 
     if( !ok )
     {
-        iter->ebuf = NULL;   // we have messed up the message
+        iter->ebuf = 0;   // we have messed up the message
         return 0;
     }
 
@@ -723,7 +719,7 @@ static size_t tausch_iter_overwrite( tausch_iter_t *iter, size_t tag, uint8_t *b
     if( ! tausch_iter_next( iter ) )
     {
         // what ? failed ??
-        iter->ebuf = NULL;
+        iter->ebuf = 0;
         return 0;
     }
 
@@ -740,7 +736,7 @@ static size_t tausch_iter_overwrite( tausch_iter_t *iter, size_t tag, uint8_t *b
  * @return true if the stuffing was successful.
  * @return false if the stuffing was unsuccessful.
  */
-bool tausch_iter_write_stuffing( tausch_iter_t *iter, size_t len )
+bool tausch_iter_write_stuffing( tausch_iter_t *iter, tsch_size_t len )
 {
     if( !tausch_iter_is_ok( iter ) ) return false;
     if( tausch_iter_is_clean(iter) )
@@ -795,7 +791,7 @@ bool tausch_iter_erase( tausch_iter_t *iter )
  * @return false on failure
  * @return true on success
  */
-bool tausch_iter_write_scope( tausch_iter_t *iter, size_t tag )
+bool tausch_iter_write_scope( tausch_iter_t *iter, tsch_size_t tag )
 {
     if( !tausch_iter_is_ok( iter ) ) return false;
     if( tausch_iter_is_complete( iter ) && (! tausch_iter_is_stuffing(iter)) && (!tausch_iter_is_eof(iter)) ) return false;   // scope can only be appended
@@ -805,11 +801,11 @@ bool tausch_iter_write_scope( tausch_iter_t *iter, size_t tag )
     bool rv = tausch_iter_write_bool( iter, tag, NULL );
     if( (!rv) || (! tausch_iter_is_ok(iter)) ) return false;
     // then add to it the collection flag
-    *iter->idx &= ~3;
-    *iter->idx += 1;
+    iter->buf[iter->idx] &= ~3;
+    iter->buf[iter->idx] += 1;
     iter->lc = 1;
-    iter->val = NULL;
-    iter->scope += 1;
+    iter->val = TSCH_NOTHING;
+    //iter->scope += 1;
     return true;
 }
 
@@ -828,14 +824,14 @@ bool tausch_iter_write_end( tausch_iter_t *iter )
     if( iter->scope == 0 ) return false;   // nothing to close
 
     // first write it as single byte tag 0
-    size_t rv = tausch_iter_overwrite( iter, 0, NULL, 0, false );
+    tsch_size_t rv = tausch_iter_overwrite( iter, 0, NULL, 0, false );
     if( (rv == 0) || (! tausch_iter_is_ok(iter)) ) return false;
     // then turn it to eos
-    *iter->idx = 3;
-    iter->val = NULL;
+    iter->buf[iter->idx] = 3;
+    iter->val = TSCH_NOTHING;
     iter->lc = 3;
-    iter->scope -= 1;
-    iter->tag = ~0;
+    //iter->scope -= 1;
+    iter->tag = TSCH_NOTHING;
     return true;
 }
 
@@ -862,7 +858,7 @@ bool tausch_iter_read_bool( tausch_iter_t *iter, bool *value )
     }
     else for( int i = 0; i < iter->vlen; i++ )
     {
-        if( iter->val[i] != 0 )
+        if( iter->buf[iter->val+i] != 0 )
         {
             *value = true;
             return true;
@@ -884,7 +880,7 @@ bool tausch_iter_read_bool( tausch_iter_t *iter, bool *value )
  * @return true if the write was successful
  * @return false if the write was unsuccessful
  */
-bool tausch_iter_write_bool( tausch_iter_t *iter, size_t tag, bool *value )
+bool tausch_iter_write_bool( tausch_iter_t *iter, tsch_size_t tag, bool *value )
 {
     return tausch_iter_write_typX( iter, tag, (uint8_t*)value, value ? sizeof(bool) : 0 ) > 0;
 }
@@ -899,12 +895,12 @@ bool tausch_iter_write_bool( tausch_iter_t *iter, size_t tag, bool *value )
  * @return 0 on failure
  * @return number of bytes read out
  */
-size_t tausch_iter_read_typX( tausch_iter_t *iter, uint8_t *value, size_t len )
+tsch_size_t tausch_iter_read_typX( tausch_iter_t *iter, uint8_t *value, tsch_size_t len )
 {
     if( !tausch_iter_is_ok( iter ) ) return 0;
     if( value == NULL ) return 0;
     if( iter->vlen != len ) return 0;
-    memcpy( (void*)value, (void*)iter->val, len );
+    memcpy( (void*)value, (void*)&iter->buf[iter->val], len );
     return len;
 }
 
@@ -920,13 +916,13 @@ size_t tausch_iter_read_typX( tausch_iter_t *iter, uint8_t *value, size_t len )
  * @return 0 on failure
  * @return number of bytes read out
  */
-size_t tausch_iter_read_blob( tausch_iter_t *iter, tausch_blob_t *value )
+tsch_size_t tausch_iter_read_blob( tausch_iter_t *iter, tausch_blob_t *value )
 {
     if( !tausch_iter_is_ok( iter ) ) return 0;
     if( value == NULL ) return 0;
     if( iter->vlen > value->len ) return 0;
 
-    memcpy( (void*)value->buf, (void*)iter->val, iter->vlen );
+    memcpy( (void*)value->buf, (void*)&iter->buf[iter->val], iter->vlen );
     memset( value->buf + iter->vlen, 0, value->len - iter->vlen );
     return iter->vlen;
 }
@@ -946,7 +942,7 @@ size_t tausch_iter_read_blob( tausch_iter_t *iter, tausch_blob_t *value )
  * @return 0 on failure
  * @return number of value bytes written, for null return 1
  */
-size_t tausch_iter_write_typX( tausch_iter_t *iter, size_t tag, uint8_t *value, size_t len )
+tsch_size_t tausch_iter_write_typX( tausch_iter_t *iter, tsch_size_t tag, uint8_t *value, tsch_size_t len )
 {
     if( !tausch_iter_is_ok( iter ) ) return 0;
     if( !tausch_iter_is_complete( iter ) ) return 0; // only complete iterator fits
@@ -965,7 +961,7 @@ size_t tausch_iter_write_typX( tausch_iter_t *iter, size_t tag, uint8_t *value, 
             {
                 // adding into beginning of stuffing and keeping remaining as stuffing
                 tausch_iter_t tm = *iter;
-                size_t rv = (tausch_iter_overwrite( iter, tag, value, len, false ) > 0 ? iter->vlen : 0);
+                tsch_size_t rv = (tausch_iter_overwrite( iter, tag, value, len, false ) > 0 ? iter->vlen : 0);
                 if( (rv == 0) || (iter->vlen != len) )
                 {
                     // turn back the area to iter
@@ -1002,7 +998,7 @@ size_t tausch_iter_write_typX( tausch_iter_t *iter, size_t tag, uint8_t *value, 
  * @return 0 on failure
  * @return size written from blob data on success
  */
-size_t tausch_iter_write_blob( tausch_iter_t *iter, size_t tag, tausch_blob_t *value )
+tsch_size_t tausch_iter_write_blob( tausch_iter_t *iter, tsch_size_t tag, tausch_blob_t *value )
 {
     if( !tausch_iter_is_ok( iter ) ) return 0;
     if( !tausch_iter_is_complete( iter ) ) return 0;   // only complete iterator fits
@@ -1021,7 +1017,7 @@ size_t tausch_iter_write_blob( tausch_iter_t *iter, size_t tag, tausch_blob_t *v
         {
             // adding into beginning of stuffing and keeping remaining as stuffing
             tausch_iter_t tm = *iter;
-            size_t rv = tausch_iter_overwrite( iter, tag, value->buf, value->len, false );
+            tsch_size_t rv = tausch_iter_overwrite( iter, tag, value->buf, value->len, false );
             if( rv == 0 )
             {
                 // turn back the area to iter
@@ -1054,7 +1050,7 @@ size_t tausch_iter_write_blob( tausch_iter_t *iter, size_t tag, tausch_blob_t *v
  * @return 0 on failure
  * @return size written on success
  */
-size_t tausch_iter_write_utf8( tausch_iter_t *iter, size_t tag, char *value )
+tsch_size_t tausch_iter_write_utf8( tausch_iter_t *iter, tsch_size_t tag, char *value )
 {
     if( value == NULL ) return 0;
 
@@ -1067,10 +1063,10 @@ size_t tausch_iter_write_utf8( tausch_iter_t *iter, size_t tag, char *value )
 /**
  * Get the length of the TLV value field
  */
-size_t tausch_iter_vlen( tausch_iter_t *iter )
+tsch_size_t tausch_iter_vlen( tausch_iter_t *iter )
 {
     if( !tausch_iter_is_ok( iter ) ) return 0;
-    if( iter->val == NULL ) return 0;
+    if( iter->val == TSCH_NOTHING ) return 0;
     if( tausch_iter_is_complete( iter ) )
     {
         return iter->vlen;
@@ -1087,7 +1083,7 @@ size_t tausch_iter_vlen( tausch_iter_t *iter )
  * @param len : size_t - the amount of bytes in resulting blob reference
  * @return
  */
-tausch_blob_t* tausch_blob_slice( tausch_blob_t *result, tausch_blob_t *orig, size_t offset, size_t len )
+tausch_blob_t* tausch_blob_slice( tausch_blob_t *result, tausch_blob_t *orig, tsch_size_t offset, tsch_size_t len )
 {
     *result = *orig;
     if( ( (offset + len) > offset) && (offset <= result->len) )

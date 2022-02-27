@@ -18,11 +18,14 @@ bool hexcompare( uint8_t *b1, char *b2 );
     do{ uint8_t *b2 = sb2; test( bincompare(b1,b2,sizeof(sb2)),emsg); }while(0)
 
 #define STRCOMP( b1, sb2, emsg )\
-    do{ uint8_t *b2 = (uint8_t*)sb2; test( bincompare(b1,b2,strlen(b2)),emsg); }while(0)
+    do{ uint8_t *b2 = (uint8_t*)sb2; test( bincompare(b1,b2,strlen(sb2)),emsg); }while(0)
 
 #define HEXCOMP( b1, sb2, emsg )\
     do{ test( hexcompare(b1,sb2),emsg); }while(0)
 
+#define LINE( msg, ... )({ snprintf( errorbuf, sizeof(errorbuf), msg " at %d", ##__VA_ARGS__, __LINE__ ); errorbuf;})
+
 bool test_buf( void );
+bool test_flater( void );
 
 void printhex( char *prep, uint8_t *start, uint8_t *end );

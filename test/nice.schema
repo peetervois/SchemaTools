@@ -56,7 +56,6 @@ sints : COLLECTION = 3
 	sint16 : SINT-16 = 3
 	sint32 : SINT-32 = 4
 	sint64 : SINT-64 = 5
-	sint128 : SINT-128 = 6
 :END
 
 uints : COLLECTION = 4
@@ -65,14 +64,12 @@ uints : COLLECTION = 4
 	uint16 : UINT-16 = 3
 	uint32 : UINT-32 = 4
 	uint64 : UINT-64 = 5
-	uint128 : UINT-128 = 6
 :END
 
 floats : COLLECTION = 5
 	float : FLOAT = 1
 	float32 : FLOAT-32 = 4
 	float64 : FLOAT-64 = 5
-	float128 : FLOAT-128 = 6
 :END
 
 
