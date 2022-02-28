@@ -1,0 +1,44 @@
+ --- Testing of writing u32 with 1 byte tag and 1 byte length. 
+ --- Testing of advancing the iterator to write next value
+ --- Testing of writin 3byte length of tag 
+ --- Testing of value overwrite 
+ --- Testing nullification of the value
+ --- Testing the is_null method 
+ --- testing of advancing the iterator to next, this time newly created stuffing. 
+ --- Testing of advancing into EOF. 
+ --- Testing start over and runtime initiating the iter 
+ --- Decode to stuffing 
+ --- Testing of decoding to end of buffer 
+ --- Testing writing of the boolean. 
+ --- Iterating the buffer one by one at the same scope (root scope). 
+ --- Iterating the buffer to the item at the same scope (root scope). 
+ --- Iterating the buffer to the stuffing but EOF will be found. 
+ --- Testing writing of the multibyte boolean. 
+ --- Testing writing of typX. 
+ --- Testing of writing UTF8 
+ --- Testing writing of typX null. 
+ --- Testing writing of scoped data. 
+ --- Testing over the edge decoding. 
+
+### Producing message for flaterator to iterate 
+
+
+### Flaterator tests.
+
+   -- Running the method next 
+   -- Testing reset 
+   -- Testing clone 
+   -- Testing go_to 
+   -- testing read with no argument 
+   -- Testing read with name index argument 
+   -- Testing read with scoped name index argument 
+   -- Testing overwriting of a value 
+   -- Testing of adding a structure at the end 
+ flater done 
+
+
+
+Number of tests performed: 219 
+   Number of tests failed: 0 
+
+
