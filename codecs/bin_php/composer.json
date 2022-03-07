@@ -6,11 +6,11 @@
 		}
 	],
 	"minimum-stability" : "alpha",
-	"name" : "tauria/schema_tools",
+	"name" : "tauria/schematools",
 	"description" : "Schema language, parser, compilator and support for different languages.",
 	"autoload" : {
 		"psr-4" : {
-			"tauschema" : "codecs/bin_php/src"
+			"Tauria\\Schematools\\" : "src"
 		}
 	}
 }
