@@ -118,7 +118,7 @@ class SchemaFactory:
         'SINT'      : 7,    'SINT-8'    : 8,    'SINT-16'   : 9,    'SINT-32'   : 10,
         'SINT-64'   : 11,
         'FLOAT'     : 12,   'FLOAT-32'  : 13,   'FLOAT-64'  : 14,
-        'UTF-8'     : 15,   'BLOB'      : 16,
+        'UTF8'     : 15,   'BLOB'      : 16,
         'COLLECTION': 17,   'VARIADIC'  : 18
     }
     """

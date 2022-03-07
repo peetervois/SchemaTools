@@ -937,7 +937,7 @@ class Iterator
                         return 0;
                     return $this->read($value, $format . "-" . $this->p_vlen);
                 }
-            case "UTF-8":
+            case "UTF8":
             case "BLOB":
                 {
                     if ($this->p_vlen <= 0)
@@ -958,7 +958,7 @@ class Iterator
      * When value is NULL, and format is ZERO a null item will be written.
      * When value is NULL and type is numeric (e.g. SINT-8) then entire value field
      * is replaced with 0x00.
-     * When value is integer and format is BLOB or UTF-8, then integer length of
+     * When value is integer and format is BLOB or UTF8, then integer length of
      * the zeroed blob is written.
      *
      * format codes:
@@ -1039,7 +1039,7 @@ class Iterator
                     else
                         $str = pack("e", $value);
                     break;
-                case "UTF-8":
+                case "UTF8":
                 case "BLOB":
                     if (is_int($value))
                         $str = str_repeat(chr(0), $value);
@@ -1069,7 +1069,7 @@ class Iterator
                 // simple overwrite of the value
                 $str = $write_val($value, $format);
                 $len = strlen($str);
-                if (($format == "UTF-8")) {
+                if (($format == "UTF8")) {
                     if (($len < $this->p_vlen)) {
                         // fill reminder with 0
                         $str .= str_repeat(chr(0), $this->p_vlen - $len);
@@ -1244,6 +1244,71 @@ class Iterator
      */
     private int $p_lc = 0;
 
+    /**
+     * Return current message decoded as HEX strings 
+     *
+     */
+    function debug_msg()
+    {
+        $clone = $this->clone();
+        $clone->reset();
+        $message = $this->p_msg;
+        $message_length = strlen($message);
+        
+        $message = bin2hex($message);
+        $message = chunk_split($message, 2, ' ');
+        
+        $indexes = range(0, $message_length - 1);
+        foreach($indexes as &$index)
+        {
+            $index = substr(str_repeat("0", 2).$index, - 2);
+        }
+        $indexes = implode('', $indexes);
+        $indexes = chunk_split($indexes, 2, ' ');
+        
+        
+        $tags = [];
+        $scopes = [];
+        
+        $clone->next();
+        while( !$clone->is_eof() ){
+            $tags[] = $clone->p_tag;
+            
+            if($clone->is_scope() ){
+                $clone->enter_scope();
+                $scopes[] = ' {';
+            }
+            else if($clone->is_end()){
+                $clone->exit_scope();
+                $scopes[] = ' }';
+            }
+            else {
+                //$tags[] = 2;
+                $scopes[] = '  ';
+            }
+            
+            $clone->next();
+        }
+        foreach($tags as &$tag)
+        {
+            $tag = substr(str_repeat("0", 2).$tag, - 2);
+        }
+        $tags = implode('', $tags);
+        $tags = chunk_split($tags, 2, ' ');
+        
+        $scopes = implode('', $scopes);
+        $scopes = chunk_split($scopes, 2, ' ');
+        
+        $rv = "";
+        $rv .= substr(str_repeat(' ', 10)."MSG: ", - 10) . $message . "\n";
+        $rv .= substr(str_repeat(' ', 10)."INDX: ", - 10) . $indexes . "\n";
+        $rv .= substr(str_repeat(' ', 10)."TAG: ", - 10) . $tags . "\n";
+        $rv .= substr(str_repeat(' ', 10)."SCOPE: ", - 10) . $scopes . "\n";
+       // $rv .= substr(str_repeat(' ', 10)."LC: ", - 10) . $lcs . "\n";
+        
+        return $rv;
+    }
+    
     /**
      * Copy the values of other iterator to this.
      *
