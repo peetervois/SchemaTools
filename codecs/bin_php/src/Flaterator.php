@@ -28,9 +28,9 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-namespace tauschema;
+namespace Tauria\Schematools;
 
-include_once 'tauschema_codec.php';
+use Tauria\Schematools\Iterator;
 
 class Flaterator
 {
@@ -329,7 +329,7 @@ class Flaterator
         $fl = $this->clone();
 
         // first try to understand if we are overwriting or adding
-        $over = ! $fl->p_iter->is_eof();
+        $over = ! $fl->p_iter->is_eof();  
 
         if (($over) && (! is_null($id))) {
             // index has been provided, try to go to the position
@@ -345,7 +345,7 @@ class Flaterator
         if ((! $over) && is_string($id)) {
             // check if the string is relational
             // like name1.name2.name3
-            $id = explode(".", $id); // even if only one element is added
+            $id = explode(".", $id); // even if only one element is added    
         }
 
         if ((! $over) && is_array($id)) {
@@ -375,6 +375,7 @@ class Flaterator
             $primitives = function ($a, $fl, $it) use (&$primitives) {
                 $rv = true;
                 if (is_string($a) || is_integer($a)) {
+                    
                     // a tagonly boolean = True is requested to be written
                     $mit = $it->clone()->go_to($a);
                     if (! $mit->is_tag($a)) {
@@ -387,7 +388,7 @@ class Flaterator
                     $rv = $rv && $fl->p_iter->write($mit->get()["item"], Null, "BOOL");
                     $rv = $rv && ! $fl->p_iter->next();
                     // done
-                } else if (is_array($a)) {
+                } else if (is_array($a)) {   
                     if (! (array_values($a)!==$a)) {
                         // it is a case with variadic, we need list for its values
                         // plain list can be removed, we simply recurse through it
