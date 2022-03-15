@@ -485,6 +485,149 @@ class Flaterator
      * @var Iterator
      */
     private ?Iterator $p_iter = Null;
+    
+    /**
+     * Return current message decoded as HEX strings
+     *
+     */
+    function debug_msg()
+    {
+        //$clone = $this->p_iter->clone();
+        //$clone->reset();
+        
+        $clone = $this->p_iter->clone();
+        
+        $message = $this->p_iter->message();
+        $message_length = strlen($message);
+        
+        $message = bin2hex($message);
+        $message = chunk_split($message, 2, ' ');
+        
+        $indexes = range(0, $message_length - 1);
+        $scopes = [];
+        $tags = [];
+        
+        $formated = "\nTLV:\n[\n";
+        
+        $last_scope = "";
+        
+        $formatted_indent = ["  "];
+        
+        $idx_start = $this->p_schema[0]["sub"];
+        
+        
+        $clone->next();
+        while( !$clone->is_eof() )
+        {
+            if( $clone->tag() )
+            {
+                $tag = $clone->tag();
+                $name = "";         
+                
+                if($clone->is_scope() )
+                {
+                    $tags[] = $tag;
+                    $scopes[] = " {";
+                    
+                    $last_scope = substr(str_repeat(" ", 2).$tag, - 2);
+                    
+                    $idx = $idx_start;
+                    while($idx)
+                    {
+                        $current_scope = $this->p_schema[$idx];
+                        if($current_scope["item"] == $tag)
+                        {
+                            break;
+                        }
+                        $idx = $current_scope["next"]; 
+                    }
+                    
+                    $name = $current_scope["name"];
+                    $idx_start = $current_scope["sub"];
+                    
+                    $formated .= implode('', $formatted_indent)."$name:  // TAG: $tag\n" . implode('', $formatted_indent) . "{\n";
+                    $formatted_indent[] = "    ";
+                    
+                    $clone->enter_scope();
+                }
+                else{
+                    $tags[] = $tag;
+                    $scopes[] = "__";
+                    
+                    $len = $clone->vlen() + 1;
+                    while($len){
+                        $tags[] = "__";
+                        $scopes[] = "__";
+                        $len--;
+                    }
+                    
+                    $idx = $idx_start;
+                    while($idx)
+                    {
+                        $current_scope = $this->p_schema[$idx];
+                        if($current_scope["item"] == $tag)
+                        {
+                            break;
+                        }
+                        $idx = $current_scope["next"];                    
+                    }
+                    $name = $current_scope["name"];
+                    $len = $clone->vlen();
+                    $type = $current_scope["type"];
+                    
+                    $value = "";
+                    $clone->read($value, $type);
+                    $formated .= implode('', $formatted_indent)."$name: $value,  // TAG: $tag LENGTH: $len TYPE: $type\n";
+                }
+            }
+            
+            else if($clone->is_end()){
+                
+                $clone->exit_scope();
+                $tags[] = $last_scope;
+                $scopes[] = ' }';
+                
+                array_pop($formatted_indent);
+                $formated .= implode('', $formatted_indent)."},\n";
+                
+                foreach($this->p_schema as $row_index => $row_item){
+                    if($row_item["sub"] == $idx_start){
+                        $idx_start = $row_index;
+                    }
+                }
+            }
+            else{
+                
+            }
+            $clone->next();
+        }
+        
+        $formated .= "];";
+        
+        foreach($indexes as &$index)
+        {
+            $index = substr(str_repeat("0", 2).$index, - 2);
+        }
+        foreach($tags as &$tag)
+        {
+            $tag = substr(str_repeat(" ", 2).$tag, - 2);
+        }
+        
+        $indexes = implode(' ', $indexes);
+        $scopes = implode(' ', $scopes);
+        $tags = implode(' ', $tags);
+        
+        
+        $rv = "";
+        $rv .= substr(str_repeat(' ', 10)."MSG: ", - 10) . $message . "\n";
+        //$rv .= substr(str_repeat(' ', 10)."INDX: ", - 10) . $indexes . "\n";
+        $rv .= substr(str_repeat(' ', 10)."SCOPES: ", - 10) . $scopes . "\n";
+        $rv .= substr(str_repeat(' ', 10)."TAGS: ", - 10) . $tags . "\n";
+        
+        $rv .= $formated;
+        
+        return $rv;
+    }
 }
 
 ?>

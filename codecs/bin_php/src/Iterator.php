@@ -1258,53 +1258,70 @@ class Iterator
         $message = bin2hex($message);
         $message = chunk_split($message, 2, ' ');
         
-        $indexes = range(0, $message_length - 1);
+        $indexes = range(0, $message_length - 1); 
+        $scopes = [];
+        $tags = [];
+        
+        $last_scope = $clone->p_tag;
+        
+        $clone->next();
+        while( !$clone->is_eof() ){
+            if($clone->p_tag){
+                
+                if($clone->is_scope() ){    
+                    $clone->enter_scope();
+                    
+                    $tags[] = $clone->p_tag;
+                    $scopes[] = " {";
+                    
+                    $last_scope = substr(str_repeat(" ", 2).$clone->p_tag, - 2);
+                }
+                else{
+                    $tags[] = $clone->p_tag;
+                    $scopes[] = "__";
+                    
+                    $len = $clone->vlen();
+                    $tags[] = "__";
+                    $scopes[] = "__";
+                    while($len){
+                        $tags[] = "__";
+                        $scopes[] = "__";
+                        $len--;
+                    }
+                    
+                }
+            }
+
+            else if($clone->is_end()){
+                $clone->exit_scope();
+                $tags[] = $last_scope; 
+                $scopes[] = ' }';
+            }
+            else{
+                
+            }
+            $clone->next();
+        }
+        
         foreach($indexes as &$index)
         {
             $index = substr(str_repeat("0", 2).$index, - 2);
         }
-        $indexes = implode('', $indexes);
-        $indexes = chunk_split($indexes, 2, ' ');
-        
-        
-        $tags = [];
-        $scopes = [];
-        
-        $clone->next();
-        while( !$clone->is_eof() ){
-            $tags[] = $clone->p_tag;
-            
-            if($clone->is_scope() ){
-                $clone->enter_scope();
-                $scopes[] = ' {';
-            }
-            else if($clone->is_end()){
-                $clone->exit_scope();
-                $scopes[] = ' }';
-            }
-            else {
-                //$tags[] = 2;
-                $scopes[] = '  ';
-            }
-            
-            $clone->next();
-        }
         foreach($tags as &$tag)
         {
-            $tag = substr(str_repeat("0", 2).$tag, - 2);
+            $tag = substr(str_repeat(" ", 2).$tag, - 2);
         }
-        $tags = implode('', $tags);
-        $tags = chunk_split($tags, 2, ' ');
         
-        $scopes = implode('', $scopes);
-        $scopes = chunk_split($scopes, 2, ' ');
+        $indexes = implode(' ', $indexes);
+        $scopes = implode(' ', $scopes); 
+        $tags = implode(' ', $tags);
+       
         
         $rv = "";
         $rv .= substr(str_repeat(' ', 10)."MSG: ", - 10) . $message . "\n";
-        $rv .= substr(str_repeat(' ', 10)."INDX: ", - 10) . $indexes . "\n";
-        $rv .= substr(str_repeat(' ', 10)."TAG: ", - 10) . $tags . "\n";
-        $rv .= substr(str_repeat(' ', 10)."SCOPE: ", - 10) . $scopes . "\n";
-       // $rv .= substr(str_repeat(' ', 10)."LC: ", - 10) . $lcs . "\n";
+        //$rv .= substr(str_repeat(' ', 10)."INDX: ", - 10) . $indexes . "\n";
+        $rv .= substr(str_repeat(' ', 10)."SCOPES: ", - 10) . $scopes . "\n";
+        $rv .= substr(str_repeat(' ', 10)."TAGS: ", - 10) . $tags . "\n";
         
         return $rv;
     }
