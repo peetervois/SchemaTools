@@ -545,7 +545,7 @@ class Flaterator
                     $name = $current_scope["name"];
                     $idx_start = $current_scope["sub"];
                     
-                    $formated .= implode('', $formatted_indent)."$name:  // TAG: $tag\n" . implode('', $formatted_indent) . "{\n";
+                    $formated .= implode('', $formatted_indent)."$name:  \t// TAG: $tag\n" . implode('', $formatted_indent) . "{\n";
                     $formatted_indent[] = "    ";
                     
                     $clone->enter_scope();
@@ -555,6 +555,7 @@ class Flaterator
                     $scopes[] = "__";
                     
                     $len = $clone->vlen() + 1;
+                    
                     while($len){
                         $tags[] = "__";
                         $scopes[] = "__";
@@ -577,7 +578,7 @@ class Flaterator
                     
                     $value = "";
                     $clone->read($value, $type);
-                    $formated .= implode('', $formatted_indent)."$name: $value,  // TAG: $tag LENGTH: $len TYPE: $type\n";
+                    $formated .= implode('', $formatted_indent)."$name: $value,  \t// TAG: $tag LENGTH: $len TYPE: $type\n";
                 }
             }
             
