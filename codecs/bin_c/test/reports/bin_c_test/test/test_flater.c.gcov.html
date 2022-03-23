@@ -31,17 +31,17 @@
             <td class="headerValue">coverage_bin_c_test.info</td>
             <td></td>
             <td class="headerItem">Lines:</td>
-            <td class="headerCovTableEntry">131</td>
-            <td class="headerCovTableEntry">131</td>
+            <td class="headerCovTableEntry">143</td>
+            <td class="headerCovTableEntry">143</td>
             <td class="headerCovTableEntryHi">100.0 %</td>
           </tr>
           <tr>
             <td class="headerItem">Date:</td>
-            <td class="headerValue">2022-02-28 22:22:47</td>
+            <td class="headerValue">2022-03-23 15:57:00</td>
             <td></td>
             <td class="headerItem">Functions:</td>
-            <td class="headerCovTableEntry">3</td>
-            <td class="headerCovTableEntry">3</td>
+            <td class="headerCovTableEntry">4</td>
+            <td class="headerCovTableEntry">4</td>
             <td class="headerCovTableEntryHi">100.0 %</td>
           </tr>
           <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
@@ -231,11 +231,27 @@
 <a name="169"><span class="lineNum">     169 </span><span class="lineCov">          1 :         test( stringblob.buf[20] == 0, LINE(&quot;&quot;));</span></a>
 <a name="170"><span class="lineNum">     170 </span><span class="lineCov">          1 :         test( tausch_flater_tag_n( tausch_flater_next( &amp;fl )) == TAUSCH_NAM_DEVICE_INFO_, LINE(&quot;&quot;));</span></a>
 <a name="171"><span class="lineNum">     171 </span><span class="lineCov">          1 :         test( fl.iter.scope == 0, LINE(&quot;&quot;));</span></a>
-<a name="172"><span class="lineNum">     172 </span>            :     }</a>
-<a name="173"><span class="lineNum">     173 </span>            : </a>
-<a name="174"><span class="lineNum">     174 </span><span class="lineCov">          1 :     printf( &quot; flater done \n\n&quot;);</span></a>
-<a name="175"><span class="lineNum">     175 </span><span class="lineCov">          1 :     return true;</span></a>
-<a name="176"><span class="lineNum">     176 </span>            : }</a>
+<a name="172"><span class="lineNum">     172 </span>            : </a>
+<a name="173"><span class="lineNum">     173 </span><span class="lineCov">          1 :         printf( &quot;   -- Testing of writing empty blob (stuffing) into UTF8 field \n&quot; );</span></a>
+<a name="174"><span class="lineNum">     174 </span><span class="lineCov">          1 :         tausch_flater_reset( &amp;fl );</span></a>
+<a name="175"><span class="lineNum">     175 </span><span class="lineCov">          1 :         tausch_format_buf( buf );</span></a>
+<a name="176"><span class="lineNum">     176 </span><span class="lineCov">          2 :         ok = ok &amp;&amp; TAUSCH_FLATER_WRITE_SCOPE( &amp;fl, TAUSCH_NAM_DEVICE_INFO_info )</span></a>
+<a name="177"><span class="lineNum">     177 </span>            :                 {</a>
+<a name="178"><span class="lineNum">     178 </span><span class="lineCov">          1 :                         tausch_blob_t emptyblob = { .buf = NULL, .len = 5 };</span></a>
+<a name="179"><span class="lineNum">     179 </span><span class="lineCov">          1 :                         ok = ok &amp;&amp; (tausch_flater_write( sfl, TAUSCH_NAM_DEVICE_INFO_demostring, &amp;emptyblob ) &gt; 0);</span></a>
+<a name="180"><span class="lineNum">     180 </span><span class="lineCov">          1 :                         return ok;</span></a>
+<a name="181"><span class="lineNum">     181 </span>            :                 }</a>
+<a name="182"><span class="lineNum">     182 </span><span class="lineCov">          1 :         TAUSCH_FLATER_CLOSE_SCOPE;</span></a>
+<a name="183"><span class="lineNum">     183 </span>            : </a>
+<a name="184"><span class="lineNum">     184 </span><span class="lineCov">          1 :         test( ok, LINE(&quot;&quot;));</span></a>
+<a name="185"><span class="lineNum">     185 </span><span class="lineCov">          1 :         memset( stringblob.buf, 255, stringblob.len );</span></a>
+<a name="186"><span class="lineNum">     186 </span><span class="lineCov">          1 :         test( tausch_flater_read(&amp;fl, &amp;stringblob, TAUSCH_NAM_DEVICE_INFO_demostring) == 5, LINE(&quot;&quot;));</span></a>
+<a name="187"><span class="lineNum">     187 </span><span class="lineCov">          1 :         test( stringblob.buf[0] == 0, LINE(&quot;&quot;));</span></a>
+<a name="188"><span class="lineNum">     188 </span>            :     }</a>
+<a name="189"><span class="lineNum">     189 </span>            : </a>
+<a name="190"><span class="lineNum">     190 </span><span class="lineCov">          1 :     printf( &quot; flater done \n\n&quot;);</span></a>
+<a name="191"><span class="lineNum">     191 </span><span class="lineCov">          1 :     return true;</span></a>
+<a name="192"><span class="lineNum">     192 </span>            : }</a>
 </pre>
       </td>
     </tr>

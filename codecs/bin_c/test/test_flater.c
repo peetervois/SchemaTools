@@ -169,6 +169,22 @@ bool test_flater( void )
         test( stringblob.buf[20] == 0, LINE(""));
         test( tausch_flater_tag_n( tausch_flater_next( &fl )) == TAUSCH_NAM_DEVICE_INFO_, LINE(""));
         test( fl.iter.scope == 0, LINE(""));
+
+        printf( "   -- Testing of writing empty blob (stuffing) into UTF8 field \n" );
+        tausch_flater_reset( &fl );
+        tausch_format_buf( buf );
+        ok = ok && TAUSCH_FLATER_WRITE_SCOPE( &fl, TAUSCH_NAM_DEVICE_INFO_info )
+		{
+			tausch_blob_t emptyblob = { .buf = NULL, .len = 5 };
+			ok = ok && (tausch_flater_write( sfl, TAUSCH_NAM_DEVICE_INFO_demostring, &emptyblob ) > 0);
+			return ok;
+		}
+        TAUSCH_FLATER_CLOSE_SCOPE;
+
+        test( ok, LINE(""));
+        memset( stringblob.buf, 255, stringblob.len );
+        test( tausch_flater_read(&fl, &stringblob, TAUSCH_NAM_DEVICE_INFO_demostring) == 5, LINE(""));
+        test( stringblob.buf[0] == 0, LINE(""));
     }
 
     printf( " flater done \n\n");

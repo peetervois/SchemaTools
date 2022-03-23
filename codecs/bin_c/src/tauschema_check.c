@@ -840,14 +840,10 @@ tsch_size_t tausch_flater_write_any( tausch_flater_t *flat, tsch_size_t nam, tau
     //analyze the method we need to handle
     if( (typ == TSCH_BLOB) || (typ == TSCH_UTF8) )
     {
-        if( (fl.row.ntype == TSCH_BLOB) )
+        if( (fl.row.ntype == TSCH_BLOB) || (fl.row.ntype == TSCH_UTF8) )
         {
             tausch_blob_t tmp = { .buf = buf, .len = len };
             return tausch_iter_write_blob( &fl.iter, fl.row.item, &tmp );
-        }
-        else if( (fl.row.ntype == TSCH_UTF8) )
-        {
-            return tausch_iter_write_utf8( &fl.iter, fl.row.item, (char*)buf );
         }
         else
         {

@@ -34,11 +34,12 @@
    -- Testing read with scoped name index argument 
    -- Testing overwriting of a value 
    -- Testing of adding a structure at the end 
+   -- Testing of writing empty blob (stuffing) into UTF8 field 
  flater done 
 
 
 
-Number of tests performed: 219 
+Number of tests performed: 222 
    Number of tests failed: 0 
 
 
