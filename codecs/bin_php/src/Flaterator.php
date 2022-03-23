@@ -522,7 +522,7 @@ class Flaterator
             if( $clone->tag() )
             {
                 $tag = $clone->tag();
-                $name = "";         
+                $name = "";
                 
                 if($clone->is_scope() )
                 {
@@ -539,7 +539,7 @@ class Flaterator
                         {
                             break;
                         }
-                        $idx = $current_scope["next"]; 
+                        $idx = $current_scope["next"];
                     }
                     
                     $name = $current_scope["name"];
@@ -570,7 +570,7 @@ class Flaterator
                         {
                             break;
                         }
-                        $idx = $current_scope["next"];                    
+                        $idx = $current_scope["next"];
                     }
                     $name = $current_scope["name"];
                     $len = $clone->vlen();
@@ -578,7 +578,7 @@ class Flaterator
                     
                     $value = "";
                     $clone->read($value, $type);
-                    $formated .= implode('', $formatted_indent)."$name: $value,  \t// TAG: $tag LENGTH: $len TYPE: $type\n";
+                    $formated .= implode('', $formatted_indent)."$name:\t $value,  \t// TAG: $tag LENGTH: $len TYPE: $type\n";
                 }
             }
             
@@ -603,7 +603,7 @@ class Flaterator
             $clone->next();
         }
         
-        $formated .= "];";
+        $formated .= "];\n";
         
         foreach($indexes as &$index)
         {
