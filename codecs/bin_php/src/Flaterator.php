@@ -495,6 +495,8 @@ class Flaterator
         //$clone = $this->p_iter->clone();
         //$clone->reset();
         
+        $this->reset();
+        
         $clone = $this->p_iter->clone();
         
         $message = $this->p_iter->message();
@@ -509,11 +511,14 @@ class Flaterator
         
         $formated = "\nTLV:\n[\n";
         
-        $last_scope = "";
+        $formatted_indent = [];
+        $formatted_indent[] = "  ";
         
-        $formatted_indent = ["  "];
+        $scope_idx = [];
+        $scope_idx[] = $this->p_schema[0]["sub"];
         
-        $idx_start = $this->p_schema[0]["sub"];
+        $last_scope = [];
+        $last_scope[] = "";
         
         
         $clone->next();
@@ -529,9 +534,9 @@ class Flaterator
                     $tags[] = $tag;
                     $scopes[] = " {";
                     
-                    $last_scope = substr(str_repeat(" ", 2).$tag, - 2);
+                    $last_scope[] = substr(str_repeat(" ", 2).$tag, - 2);
                     
-                    $idx = $idx_start;
+                    $idx = $scope_idx[count($scope_idx) - 1];
                     while($idx)
                     {
                         $current_scope = $this->p_schema[$idx];
@@ -543,7 +548,7 @@ class Flaterator
                     }
                     
                     $name = $current_scope["name"];
-                    $idx_start = $current_scope["sub"];
+                    $scope_idx[] = $current_scope["sub"];
                     
                     $formated .= implode('', $formatted_indent)."$name:  \t// TAG: $tag\n" . implode('', $formatted_indent) . "{\n";
                     $formatted_indent[] = "    ";
@@ -562,7 +567,7 @@ class Flaterator
                         $len--;
                     }
                     
-                    $idx = $idx_start;
+                    $idx = $scope_idx[count($scope_idx) - 1];
                     while($idx)
                     {
                         $current_scope = $this->p_schema[$idx];
@@ -585,17 +590,14 @@ class Flaterator
             else if($clone->is_end()){
                 
                 $clone->exit_scope();
-                $tags[] = $last_scope;
+                $tags[] = $last_scope[count($last_scope) - 1];
                 $scopes[] = ' }';
                 
                 array_pop($formatted_indent);
                 $formated .= implode('', $formatted_indent)."},\n";
                 
-                foreach($this->p_schema as $row_index => $row_item){
-                    if($row_item["sub"] == $idx_start){
-                        $idx_start = $row_index;
-                    }
-                }
+                array_pop($scope_idx);
+                array_pop($last_scope);
             }
             else{
                 
