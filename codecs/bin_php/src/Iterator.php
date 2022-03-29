@@ -938,6 +938,19 @@ class Iterator
                     return $this->read($value, $format . "-" . $this->p_vlen);
                 }
             case "UTF8":
+                {
+                    if ($this->p_vlen <= 0)
+                        return 0;
+                    
+                    $value = substr($this->p_msg, $this->p_val, $this->p_vlen);
+                    if($value[0] == "\x00"){
+                       $value = "";
+                    }
+                    else{
+                       $value = trim($value);
+                    }
+                    break;
+                }
             case "BLOB":
                 {
                     if ($this->p_vlen <= 0)
