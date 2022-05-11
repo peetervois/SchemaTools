@@ -5,7 +5,7 @@
 			"homepage" : "http://www.tauria.ee"
 		}
 	],
-	"minimum-stability" : "alpha",
+	"minimum-stability" : "stable",
 	"name" : "tauria/schematools",
 	"description" : "Schema language, parser, compilator and support for different languages.",
 	"autoload" : {
