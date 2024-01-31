@@ -17,7 +17,7 @@ SchemaTools contains set of utils to work with schema:
 
  -  [x] Schema Checker (Python3)
  -  [x] Flat tree compiler,
- -  [ ] Flat tree export for C,
+ -  [x] Flat tree export for C,
  -  [x] Flat tree export for PHP,
  -  [ ] Flat tree export for javascript
 
@@ -26,18 +26,18 @@ SchemaTools contains set of utils to work with schema:
  -  [ ] Binary <-> dict for Python3
 
  -  [x] Binary codec for C
- -  [ ] Binary validator for C
+ -  [x] Binary validator for C
 
  -  [x] Binary codec for PHP
  -  [ ] Binary <-> object converter for PHP
- -  [ ] Object validator for PHP
+ -  [x] Binary validator for PHP
 
  -  [ ] Binary codec for javascript
  -  [ ] Binary <-> JSON for javascript
  -  [ ] JSON validator in javascript
  
  
- It is work in progress: (37%) 6/16.
+ It is work in progress: (56%) 9/16.
  
 ## How to use
 
